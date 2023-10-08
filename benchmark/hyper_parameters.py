@@ -41,6 +41,12 @@ hyper_parameters_dictionary = {
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP, 
         },
+        "min_samples_split" :{
+            LOWER_BOUND: 1 ,
+            UPPER_BOUND: 128,
+            TRANSFORM_TYPE:None,
+            HP_TYPE: INTEGER_HP,
+        },
         "max_depth": {
             LOWER_BOUND: 1,
             UPPER_BOUND: 50,
@@ -59,6 +65,12 @@ hyper_parameters_dictionary = {
         "dt_min_samples_leaf" : {
             LOWER_BOUND: 1 ,
             UPPER_BOUND:20,
+            TRANSFORM_TYPE:None,
+            HP_TYPE: INTEGER_HP,
+        },
+        "dt_min_samples_split" :{
+            LOWER_BOUND: 1 ,
+            UPPER_BOUND: 128,
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
         },
@@ -110,7 +122,7 @@ hyper_parameters_dictionary = {
         },
         "colsample_bytree" : {
             LOWER_BOUND : 0.1,
-            UPPER_BOUND: 0.9,
+            UPPER_BOUND: 1. ,
             TRANSFORM_TYPE: UNIFORM,
             HP_TYPE: FLOAT_HP,
         },
@@ -122,7 +134,7 @@ hyper_parameters_dictionary = {
         },
         'subsample': {
             LOWER_BOUND: 0.1,
-            UPPER_BOUND: 0.9,
+            UPPER_BOUND: 1.,
             TRANSFORM_TYPE: UNIFORM,
             HP_TYPE: FLOAT_HP,
         },
@@ -134,7 +146,7 @@ hyper_parameters_dictionary = {
         },
         "colsample_bylevel": {
             LOWER_BOUND: 0.01 ,
-            UPPER_BOUND: 0.9 ,
+            UPPER_BOUND: 1. ,
             TRANSFORM_TYPE: UNIFORM,
             HP_TYPE:FLOAT_HP,
         },
@@ -149,7 +161,20 @@ hyper_parameters_dictionary = {
             UPPER_BOUND: 500,
             TRANSFORM_TYPE: None,
             HP_TYPE: INTEGER_HP,
+        },
+        "max_delta_step":{
+            LOWER_BOUND : 0,
+            UPPER_BOUND : 10,
+            TRANSFORM_TYPE: UNIFORM,
+            HP_TYPE: FLOAT_HP,
+        },
+        "gamma":{
+            LOWER_BOUND : 0,
+            UPPER_BOUND : 5,
+            TRANSFORM_TYPE: UNIFORM,
+            HP_TYPE: FLOAT_HP,
         }
+
     },
 
 }

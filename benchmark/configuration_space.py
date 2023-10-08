@@ -305,7 +305,11 @@ class Classification_Configuration_Space(Classification_Benchmark):
 
         return search_space
 
-
+    """
+    Initializers of models given a configuration variable
+    config: dict or configuration object
+    rng : random_state
+    """
 
 
     def init_linear_svm(self, config : Union[CS.Configuration, Dict], rng: Union[int, np.random.RandomState, None]):
@@ -324,7 +328,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
     
 
     def init_rf(self,config : Union[CS.Configuration, Dict],rng : Union[int, np.random.RandomState, None] = None):
-        model = RandomForestClassifier(min_samples_split=2,**config,  bootstrap=True,random_state=rng,n_jobs=-1)
+        model = RandomForestClassifier(**config,  bootstrap=True,random_state=rng,n_jobs=-1)
         return model
 
     
@@ -335,7 +339,12 @@ class Classification_Configuration_Space(Classification_Benchmark):
             random_state=rng,
             eval_metric = ['auc'],
             use_label_encoder=False,
+            tree_method='gpu_hist',
+            gpu_id = '1'
+            
         )
+        """tree_method='gpu_hist',
+            predictor='gpu_predictor'"""
         if self.n_classes > 2:
             #Very important here. We need to use softproba to get probabilities out of XGBoost
             extra_args["objective"] = 'multi:softproba' #"multi:softmax"
@@ -365,8 +374,9 @@ class Classification_Configuration_Space(Classification_Benchmark):
        
         new_config['max_depth'] = new_config.pop('dt_max_depth')
         new_config['min_samples_leaf'] = new_config.pop('dt_min_samples_leaf')
+        new_config['min_samples_split'] = new_config.pop('dt_min_samples_split')
 
-        model = DecisionTreeClassifier(min_samples_split=2,**new_config,random_state=rng)
+        model = DecisionTreeClassifier(**new_config,random_state=rng)
 
         return model
 
@@ -390,13 +400,6 @@ class Classification_Configuration_Space(Classification_Benchmark):
         
         
         model_type = tmp_config.pop('model')
-
-        print(config)  
-        print('+++++++')
-        print(model_type)
-        print('+++++++')
-        print(model_list)
-        print('+++++++')
 
         assert model_type in model_list and model_type != None
 

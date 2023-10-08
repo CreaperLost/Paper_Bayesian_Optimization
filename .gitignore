@@ -2,3 +2,4 @@ Datasets/
 benchmark/HPOBench/
 single_smac/
 classification_experiments/
+*.pyc
