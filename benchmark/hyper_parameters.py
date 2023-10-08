@@ -59,6 +59,12 @@ hyper_parameters_dictionary = {
             TRANSFORM_TYPE:None,
             HP_TYPE:INTEGER_HP,
         },
+        "max_features":{
+            LOWER_BOUND: 0,
+            UPPER_BOUND: 1.0,
+            TRANSFORM_TYPE:UNIFORM,
+            HP_TYPE:FLOAT_HP,
+        },
     },
 
     DT_NAME: {
@@ -79,6 +85,12 @@ hyper_parameters_dictionary = {
             UPPER_BOUND: 50,
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
+        },
+        "dt_max_features":{
+            LOWER_BOUND: 0,
+            UPPER_BOUND: 1.0,
+            TRANSFORM_TYPE:UNIFORM,
+            HP_TYPE:FLOAT_HP,
         },
     
     },

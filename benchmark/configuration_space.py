@@ -312,14 +312,14 @@ class Classification_Configuration_Space(Classification_Benchmark):
     """
 
 
-    def init_linear_svm(self, config : Union[CS.Configuration, Dict], rng: Union[int, np.random.RandomState, None]):
+    def init_linear_svm(self, config : Union[CS.Configuration, Dict], rng: Union[int, np.random.RandomState, None],n_feat = None):
         new_config = config.copy()
         new_config['C'] = new_config.pop('linear_C')
         model = SVC(**new_config,random_state=rng,probability=True)
         return model 
 
 
-    def init_rbf_svm(self, config : Union[CS.Configuration, Dict], rng: Union[int, np.random.RandomState, None ]):
+    def init_rbf_svm(self, config : Union[CS.Configuration, Dict], rng: Union[int, np.random.RandomState, None ], n_feat =None):
         new_config = config.copy()
         new_config['C'] = new_config.pop('rbf_C')
         new_config['gamma'] = new_config.pop('rbf_gamma')
@@ -327,12 +327,16 @@ class Classification_Configuration_Space(Classification_Benchmark):
         return model
     
 
-    def init_rf(self,config : Union[CS.Configuration, Dict],rng : Union[int, np.random.RandomState, None] = None):
-        model = RandomForestClassifier(**config,  bootstrap=True,random_state=rng,n_jobs=-1)
+    def init_rf(self,config : Union[CS.Configuration, Dict],rng : Union[int, np.random.RandomState, None] = None, n_feat = None):
+
+        assert n_feat != None
+        new_config = config.copy()
+        new_config["max_features"] = int(np.rint(np.power(n_feat, config["max_features"])))
+        model = RandomForestClassifier(**new_config,  bootstrap=True,random_state=rng,n_jobs=-1)
         return model
 
     
-    def init_xgb(self,config : Union[CS.Configuration, Dict],rng : Union[int, np.random.RandomState, None] = None):
+    def init_xgb(self,config : Union[CS.Configuration, Dict],rng : Union[int, np.random.RandomState, None] = None, n_feat = None):
         extra_args = dict(
             booster="gbtree",
             objective="binary:logistic",
@@ -361,7 +365,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
 
     def init_dt(self, config: Union[CS.Configuration, Dict],
                    fidelity: Union[CS.Configuration, Dict, None] = None,
-                   rng: Union[int, np.random.RandomState, None] = None , n_feat = 1):
+                   rng: Union[int, np.random.RandomState, None] = None , n_feat = None):
         """ Function that returns the model initialized based on the configuration and fidelity
         """
         rng = self.rng if rng is None else rng
@@ -370,19 +374,21 @@ class Classification_Configuration_Space(Classification_Benchmark):
         if isinstance(fidelity, CS.Configuration):
             fidelity = fidelity.get_dictionary()
 
+        assert n_feat != None
+        
         new_config = config.copy()
        
         new_config['max_depth'] = new_config.pop('dt_max_depth')
         new_config['min_samples_leaf'] = new_config.pop('dt_min_samples_leaf')
         new_config['min_samples_split'] = new_config.pop('dt_min_samples_split')
-
+        new_config["max_features"] = int(np.rint(np.power(n_feat, config["dt_max_features"])))
         model = DecisionTreeClassifier(**new_config,random_state=rng)
 
         return model
 
     
     def init_model(self, config: Union[CS.Configuration, Dict],fidelity: Union[CS.Configuration, Dict, None] = None,
-                   rng: Union[int, np.random.RandomState, None] = None,n_feat=1) :
+                   rng: Union[int, np.random.RandomState, None] = None,n_feat=None) :
         """ Function that returns the model initialized based on the configuration and fidelity
         """
 
@@ -403,7 +409,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
 
         assert model_type in model_list and model_type != None
 
-        return self.initializers[model_type](tmp_config,rng)
+        return self.initializers[model_type](tmp_config,rng,n_feat=n_feat)
     
 
 
