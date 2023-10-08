@@ -24,8 +24,10 @@ class SMAC_HPO:
         # Use SMAC to find the best configuration/hyperparameters
         self.configspace = configspace
         self.save_configuration={}
+        
         for i in config_dict:
             self.save_configuration[i] = pd.DataFrame()
+
         self.objective_function = objective_function
 
         
