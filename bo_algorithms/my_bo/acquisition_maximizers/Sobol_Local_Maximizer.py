@@ -23,6 +23,7 @@ class Sobol_Local_Maximizer():
         self.config_space = config_space
         self.n_cand = n_cand
         self.objective_function = objective_function
+
         if local_points == None:
             self.local_points = 100
         else:
@@ -64,6 +65,7 @@ class Sobol_Local_Maximizer():
             "init_budget": self.n_cand
             } 
         sobol  = SobolDesign(**init_design_def_kwargs)
+        
         population = sobol._select_configurations() #self.config_space.sample_configuration(size=initial_config_size)
         if not isinstance(population, List):
             population = [population]

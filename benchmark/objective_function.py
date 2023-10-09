@@ -144,6 +144,45 @@ class Classification_Benchmark:
         """ Function that returns the model initialized based on the configuration and fidelity
         """
         raise NotImplementedError()
+    
+
+    def _check_and_cast_configuration(self,configuration: Union[Dict, ConfigSpace.Configuration],
+                                      configuration_space: ConfigSpace.ConfigurationSpace) \
+            -> ConfigSpace.Configuration:
+        """ Helper-function to evaluate the given configuration.
+            Cast it to a ConfigSpace.Configuration and evaluate if it violates its boundaries.
+
+            Note:
+                We remove inactive hyperparameters from the given configuration. Inactive hyperparameters are
+                hyperparameters that are not relevant for a configuration, e.g. hyperparameter A is only relevant if
+                hyperparameter B=1 and if B!=1 then A is inactive and will be removed from the configuration.
+                Since the authors of the benchmark removed those parameters explicitly, they should also handle the
+                cases that inactive parameters are not present in the input-configuration.
+        """
+        
+        if isinstance(configuration, dict):
+            configuration = ConfigSpace.Configuration(configuration_space, configuration,
+                                                      allow_inactive_with_values=True)
+        elif isinstance(configuration, ConfigSpace.Configuration):
+            configuration = configuration
+        else:
+            raise TypeError(f'Configuration has to be from type List, np.ndarray, dict, or '
+                            f'ConfigSpace.Configuration but was {type(configuration)}')
+        all_hps = set(configuration_space.get_hyperparameter_names())
+        active_hps = configuration_space.get_active_hyperparameters(configuration)
+        inactive_hps = all_hps - active_hps
+
+        configuration = deactivate_inactive_hyperparameters(configuration, configuration_space)
+        configuration_space.check_configuration(configuration)
+
+        return configuration
+
+    
+
+    def __call__(self, configuration: Dict, **kwargs) -> float:
+        """ Provides interface to use, e.g., SciPy optimizers """
+        return self.objective_function(configuration, **kwargs)['function_value']
+
 
 
 
@@ -255,43 +294,6 @@ class Classification_Benchmark:
 
         return model
 
-    def _check_and_cast_configuration(self,configuration: Union[Dict, ConfigSpace.Configuration],
-                                      configuration_space: ConfigSpace.ConfigurationSpace) \
-            -> ConfigSpace.Configuration:
-        """ Helper-function to evaluate the given configuration.
-            Cast it to a ConfigSpace.Configuration and evaluate if it violates its boundaries.
-
-            Note:
-                We remove inactive hyperparameters from the given configuration. Inactive hyperparameters are
-                hyperparameters that are not relevant for a configuration, e.g. hyperparameter A is only relevant if
-                hyperparameter B=1 and if B!=1 then A is inactive and will be removed from the configuration.
-                Since the authors of the benchmark removed those parameters explicitly, they should also handle the
-                cases that inactive parameters are not present in the input-configuration.
-        """
-        
-        if isinstance(configuration, dict):
-            configuration = ConfigSpace.Configuration(configuration_space, configuration,
-                                                      allow_inactive_with_values=True)
-        elif isinstance(configuration, ConfigSpace.Configuration):
-            configuration = configuration
-        else:
-            raise TypeError(f'Configuration has to be from type List, np.ndarray, dict, or '
-                            f'ConfigSpace.Configuration but was {type(configuration)}')
-        all_hps = set(configuration_space.get_hyperparameter_names())
-        active_hps = configuration_space.get_active_hyperparameters(configuration)
-        inactive_hps = all_hps - active_hps
-
-        configuration = deactivate_inactive_hyperparameters(configuration, configuration_space)
-        configuration_space.check_configuration(configuration)
-
-        return configuration
-
-    
-
-    def __call__(self, configuration: Dict, **kwargs) -> float:
-        """ Provides interface to use, e.g., SciPy optimizers """
-        return self.objective_function(configuration, **kwargs)['function_value']
-
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
     def objective_function(self,
@@ -386,7 +388,6 @@ class Classification_Benchmark:
 
         self._check_and_cast_configuration(configuration, self.configuration_space)
 
-
         model = self._train_objective(configuration, fidelity, shuffle, rng, evaluation="test")
 
         #If evaluation == Test then you get a single model from the train_objective :D
@@ -444,13 +445,6 @@ class Classification_Benchmark:
             #Return list of models.
             model = list_of_models
 
-            scores = dict()
-            #Done no scoring because we just trained. :) -- Added some scores
-            for k, v in self.scorers.items():
-                scores[k] = 0.0
-                #Select model in first position.
-                scores[k] = v(model[0], train_X[train_idx], train_y.iloc[train_idx])
-            train_loss = scores["auc"]
         else:
             # initializing model
             model = self.init_model(config, fidelity, rng, n_feat = self.train_X[0].shape[1])
@@ -460,22 +454,12 @@ class Classification_Benchmark:
             train_idx = np.arange(len(train_X))
 
             #Here we got 1 train set. (Train + Validation from Fold 0.)
-            start = time.time()
             model.fit(train_X[train_idx], train_y.iloc[train_idx])
-            model_fit_time = time.time() - start
 
             
-            #This does some kind of prediction?
-            # computing statistics on training data
-            scores = dict()
-            score_cost = dict()
-            for k, v in self.scorers.items():
-                _start = time.time()
-                scores[k] = v(model, train_X[train_idx], train_y.iloc[train_idx])
-                score_cost[k] = time.time() - _start
-            train_loss = scores["auc"]
+           
 
-        return model, model_fit_time, train_loss, scores, score_cost
+        return model
 
     #This applies on configuration per type of model.
     def mango_objective_function(self,configuration: Union[CS.Configuration, Dict],
@@ -488,97 +472,41 @@ class Classification_Benchmark:
         assert model_type !=None
         #self._check_and_cast_configuration(configuration, self.configuration_space)
         #Get a x models trained.
-        model, model_fit_time, train_loss, train_scores, train_score_cost = self.mango_train_objective(
-            configuration, fidelity, shuffle, rng, evaluation="val",model_type=model_type
-        )
+        model = self.mango_train_objective(configuration, fidelity, shuffle, rng, evaluation="val",model_type=model_type)
 
         #Get the Validation Score (k-fold average)
         val_scores = dict()
-        val_score_cost = dict()
         for k, v in self.scorers.items():
-            _start = time.time()
             #Last model  is for the test set only!
             val_scores[k] = 0.0
             for model_fold in range(len(model)-1):
                 val_scores[k] += v(model[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-            #Average validation score.
-                #print(v(model[model_fold], self.valid_X[model_fold], self.valid_y[model_fold]))
             val_scores[k] /= (len(model)-1)
-            val_score_cost[k] = time.time() - _start
         #print(val_scores['auc'])
         val_loss = val_scores["auc"]
 
-
-        
-        #This shouldn't run in general. :)
-        #Get the Test Score, once.
-        test_scores = dict()
-        test_score_cost = dict()
-        for k, v in self.scorers.items():
-            _start = time.time()
-            #Last model is on all the dataset and is last on the list of models. Apply it to the test-set.
-            test_scores[k] = 0 #v(model[-1], self.test_X, self.test_y)
-            test_score_cost[k] = time.time() - _start
-        test_loss = test_scores["auc"]
-
-        info = {
-            'train_loss': train_loss,
-            'val_loss': val_loss,
-            'test_loss': test_loss,
-            'model_cost': model_fit_time,
-            'train_scores': train_scores,
-            'train_costs': train_score_cost,
-            'val_scores': val_scores,
-            'val_costs': val_score_cost,
-            'test_scores': test_scores,
-            'test_costs': test_score_cost,
-            # storing as dictionary and not ConfigSpace saves tremendous memory
-            'fidelity': fidelity,
-            'config': configuration,
-        }
-
-        return {
-            'function_value': info['val_loss'],
-            'cost': model_fit_time + info['val_costs']['auc'],
-            'info': info
-        }
+        return val_loss
     
 
+    
+    def mango_generic_objective(self, args_list, model_type):
+        return [self.mango_objective_function(configuration = hyper_par,model_type = model_type) for hyper_par in args_list]
+    
     def mango_objective_dt(self,args_list):
-        results = []
-        for hyper_par in args_list:
-            f=self.mango_objective_function(configuration = hyper_par,model_type = DT_NAME)
-            results.append(f['function_value'])
-        return results
+        return self.mango_generic_objective(args_list,DT_NAME)
 
     def mango_objective_xgb(self,args_list):
-        results = []
-        for hyper_par in args_list:
-            f=self.mango_objective_function(configuration = hyper_par,model_type = XGB_NAME)
-            results.append(f['function_value'])
-        return results
+        return self.mango_generic_objective(args_list,XGB_NAME)
 
     def mango_objective_LinearSVM(self,args_list):
-        results = []
-        for hyper_par in args_list:
-            f=self.mango_objective_function(configuration = hyper_par,model_type = LINEAR_SVM_NAME)
-            results.append(f['function_value'])
-        return results
+        return self.mango_generic_objective(args_list,LINEAR_SVM_NAME)
+    
 
     def mango_objective_RBFSVM(self,args_list):
-        results = []
-        for hyper_par in args_list:
-            f=self.mango_objective_function(configuration = hyper_par,model_type = RBF_SVM_NAME)
-            results.append(f['function_value'])
-        return results
+        return self.mango_generic_objective(args_list,RBF_SVM_NAME)
 
     def mango_objective_RF(self,args_list):
-
-        results = []
-        for hyper_par in args_list:
-            f=self.mango_objective_function(configuration = hyper_par,model_type = RF_NAME)
-            results.append(f['function_value'])
-        return results 
+        return self.mango_generic_objective(args_list,RF_NAME)
     
 
     
@@ -602,10 +530,8 @@ class Classification_Benchmark:
                 train_y = self.train_y[fold]
                 train_idx = self.train_idx
                 # Fit the model
-                start = time.time()
                 model.fit(train_X, train_y)
                 # computing statistics on training data
-                model_fit_time = model_fit_time + time.time() - start
                 list_of_models.append(model)
 
             # initializing model for the test set!
@@ -618,21 +544,9 @@ class Classification_Benchmark:
             #Model trained on TRAIN + VALIDATION tests.
             list_of_models.append(model)
 
-
             #Return list of models.
             model = list_of_models
 
-            scores = dict()
-            score_cost = dict()
-            #Done no scoring because we just trained. :) -- Added some scores
-            for k, v in self.scorers.items():
-                scores[k] = 0.0
-                score_cost[k] = 0.0
-                _start = time.time()
-                #Select model in first position.
-                scores[k] = v(model[0], train_X[train_idx], train_y.iloc[train_idx])
-                score_cost[k] = time.time() - _start
-            train_loss = 1-scores["auc"]
         else:
             # initializing model
             model = self.init_model(config, fidelity, rng, n_feat = self.train_X[fold].shape[1])
@@ -642,22 +556,10 @@ class Classification_Benchmark:
             train_idx = np.arange(len(train_X))
 
             #Here we got 1 train set. (Train + Validation from Fold 0.)
-            start = time.time()
             model.fit(train_X[train_idx], train_y.iloc[train_idx])
-            model_fit_time = time.time() - start
-
             
-            #This does some kind of prediction?
-            # computing statistics on training data
-            scores = dict()
-            score_cost = dict()
-            for k, v in self.scorers.items():
-                _start = time.time()
-                scores[k] = v(model, train_X[train_idx], train_y.iloc[train_idx])
-                score_cost[k] = time.time() - _start
-            train_loss = 1-scores["auc"]
 
-        return model, model_fit_time, train_loss, scores, score_cost
+        return model
 
     def optuna_objective(self,trial,rng=None):
 
@@ -665,7 +567,7 @@ class Classification_Benchmark:
         model_to_train = self.get_optuna_space(trial,rng)
 
         # Evaluate model performance -- TRAINING STEP
-        model, model_fit_time, train_loss, train_scores, train_score_cost = self.optuna_train(model_to_train,None,rng,evaluation='val')
+        model = self.optuna_train(model_to_train,None,rng,evaluation='val')
 
         # VALIDATION AVERAGE SCORE. 
         #Get the Validation Score (k-fold average)
@@ -695,7 +597,6 @@ class Classification_Benchmark:
 
         if evaluation == "val":
             list_of_models = []
-            model_fit_time = 0
             for fold in range(len(self.train_X)):
                 
                 # initializing model
@@ -705,11 +606,9 @@ class Classification_Benchmark:
                 train_y = self.train_y[fold]
                 train_idx = self.train_idx
                 # Fit the model
-                start = time.time()
                 
                 model.fit(train_X, train_y)
                 # computing statistics on training data
-                model_fit_time = model_fit_time + time.time() - start
                 list_of_models.append(model)
 
             # initializing model for the test set!
@@ -726,17 +625,7 @@ class Classification_Benchmark:
             #Return list of models.
             model = list_of_models
 
-            scores = dict()
-            score_cost = dict()
-            #Done no scoring because we just trained. :) -- Added some scores
-            for k, v in self.scorers.items():
-                scores[k] = 0.0
-                score_cost[k] = 0.0
-                _start = time.time()
-                #Select model in first position.
-                scores[k] = v(model[0], train_X[train_idx], train_y.iloc[train_idx])
-                score_cost[k] = time.time() - _start
-            train_loss = 1 - scores["auc"]
+  
         else:
             # initializing model
             model = self.init_model(curr_config, rng)
@@ -746,25 +635,14 @@ class Classification_Benchmark:
             train_idx = np.arange(len(train_X))
 
             #Here we got 1 train set. (Train + Validation from Fold 0.)
-            start = time.time()
             model.fit(train_X[train_idx], train_y.iloc[train_idx])
-            model_fit_time = time.time() - start
-
-            
-            #This does some kind of prediction?
-            # computing statistics on training data
-            scores = dict()
-            score_cost = dict()
-            for k, v in self.scorers.items():
-                _start = time.time()
-                scores[k] = v(model, train_X[train_idx], train_y.iloc[train_idx])
-                score_cost[k] = time.time() - _start
-            train_loss = 1 - scores["auc"]
-
-        return model, model_fit_time, train_loss, scores, score_cost
 
 
-        # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
+
+        return model
+
+
+    # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
     def hyperopt_objective_function(self,
                            configuration: Union[CS.Configuration, Dict],
@@ -773,23 +651,18 @@ class Classification_Benchmark:
         """Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
         #Get a x models trained.
-        model, model_fit_time, train_loss, train_scores, train_score_cost = self.hyperopt_train_objective(
+        model = self.hyperopt_train_objective(
             configuration, rng, evaluation="val"
         )
 
         #Get the Validation Score (k-fold average)
         val_scores = dict()
-        val_score_cost = dict()
         for k, v in self.scorers.items():
-            _start = time.time()
             #Last model  is for the test set only!
             val_scores[k] = 0.0
             for model_fold in range(len(model)-1):
                 val_scores[k] += v(model[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-            #Average validation score.
-                #print(v(model[model_fold], self.valid_X[model_fold], self.valid_y[model_fold]))
             val_scores[k] /= (len(model)-1)
-            val_score_cost[k] = time.time() - _start
         #print(val_scores['auc'])
         val_loss = 1 - val_scores["auc"]
 

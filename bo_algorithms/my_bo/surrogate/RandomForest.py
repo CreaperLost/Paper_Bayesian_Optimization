@@ -93,10 +93,12 @@ class  Simple_RF(BaseModel):
         preds = []
         for estimator in self.rf.estimators_:
             preds.append(estimator.predict(X).reshape([-1,1]))
+        
         var = np.var(np.concatenate(preds, axis=1), axis=1)
 
 
         if self.standardize_output == None:
             mean, var = self._untransform_y(mean, var)
+        
         return mean.reshape([-1,1]), var.reshape([-1,1]) 
 

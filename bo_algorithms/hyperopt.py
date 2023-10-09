@@ -31,7 +31,6 @@ class HyperOpt:
         self.total_time = pd.DataFrame(columns=['Time','Score'])  
     
     def run(self):
-        start_time = time.time()
 
         trials = hyperopt.Trials()
         print(trials)
@@ -44,6 +43,4 @@ class HyperOpt:
         self.fX = np.array([trial['loss'] for trial in trials.results])
 
         print(self.fX)
-
-        end_time = time.time()
             
