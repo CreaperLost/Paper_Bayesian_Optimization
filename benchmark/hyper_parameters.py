@@ -128,7 +128,7 @@ hyper_parameters_dictionary = {
         },
         "XGB_max_depth": {
             LOWER_BOUND : 1,
-            UPPER_BOUND : 50,
+            UPPER_BOUND : 30,
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
         },

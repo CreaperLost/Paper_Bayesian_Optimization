@@ -60,14 +60,14 @@ class Random_Search:
             
             #Measure Objective Time
             start_time = time()
-            result_dict = self.objective_function(config.get_dictionary())
+            kfold_score = self.objective_function(config.get_dictionary())
             end_time = time()-start_time
 
             #Save objective_time.
             self.objective_time = np.concatenate((self.objective_time,np.array([end_time])))
 
             #Get the objective score.
-            fX_next =np.array([result_dict['function_value']])
+            fX_next =np.array([kfold_score])
 
             #Store into overall-groups
             self.fX = np.concatenate((self.fX, fX_next))

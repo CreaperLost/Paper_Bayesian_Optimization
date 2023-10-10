@@ -419,7 +419,7 @@ class Classification_Benchmark:
             list_of_models = []
             for fold in range(len(self.train_X)):
                 
-                model = self.mango_init_model(config, fidelity, rng , n_feat = self.train_X[0].shape[1],model_type=model_type)
+                model = self.mango_init_model(config, fidelity, rng , n_feat = self.train_X[fold].shape[1],model_type=model_type)
                 
                 #model = self.init_model(config, fidelity, rng, n_feat = self.train_X[fold].shape[1])
                 # preparing data -- Select the fold
@@ -521,7 +521,6 @@ class Classification_Benchmark:
         
         if evaluation == "val":
             list_of_models = []
-            model_fit_time = 0
             for fold in range(len(self.train_X)):
                                 
                 model = self.init_model(config, fidelity, rng, n_feat = self.train_X[fold].shape[1])
@@ -535,7 +534,7 @@ class Classification_Benchmark:
                 list_of_models.append(model)
 
             # initializing model for the test set!
-            model =  model = self.init_model(config, fidelity, rng, n_feat = self.train_X[fold].shape[1])
+            model =  model = self.init_model(config, fidelity, rng, n_feat = self.train_X[0].shape[1])
             train_X = np.vstack((self.train_X[0], self.valid_X[0]))
             train_y = pd.concat((self.train_y[0], self.valid_y[0]))
             train_idx = np.arange(len(train_X))
@@ -600,7 +599,7 @@ class Classification_Benchmark:
             for fold in range(len(self.train_X)):
                 
                 # initializing model
-                model = self.init_model(curr_config, rng)
+                model = self.init_model(curr_config, rng, n_feat = self.train_X[fold].shape[1])
                 # preparing data -- Select the fold
                 train_X = self.train_X[fold]
                 train_y = self.train_y[fold]
@@ -612,7 +611,7 @@ class Classification_Benchmark:
                 list_of_models.append(model)
 
             # initializing model for the test set!
-            model = self.init_model(curr_config, rng)
+            model = self.init_model(curr_config, rng,n_feat = self.train_X[0].shape[1])
             train_X = np.vstack((self.train_X[0], self.valid_X[0]))
             train_y = pd.concat((self.train_y[0], self.valid_y[0]))
             train_idx = np.arange(len(train_X))

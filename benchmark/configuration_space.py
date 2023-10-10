@@ -331,7 +331,9 @@ class Classification_Configuration_Space(Classification_Benchmark):
 
         assert n_feat != None
         new_config = config.copy()
+        print(f"Features prev, root {n_feat},{config['max_features']}")
         new_config["max_features"] = int(np.rint(np.power(n_feat, config["max_features"])))
+        print(f'After #feat {new_config["max_features"]}')
         model = RandomForestClassifier(**new_config,  bootstrap=True,random_state=rng,n_jobs=-1)
         return model
 
@@ -344,11 +346,8 @@ class Classification_Configuration_Space(Classification_Benchmark):
             eval_metric = ['auc'],
             use_label_encoder=False,
             tree_method='gpu_hist',
-            gpu_id = '1'
-            
+            predictor='gpu_predictor',
         )
-        """tree_method='gpu_hist',
-            predictor='gpu_predictor'"""
         if self.n_classes > 2:
             #Very important here. We need to use softproba to get probabilities out of XGBoost
             extra_args["objective"] = 'multi:softproba' #"multi:softmax"
@@ -381,7 +380,8 @@ class Classification_Configuration_Space(Classification_Benchmark):
         new_config['max_depth'] = new_config.pop('dt_max_depth')
         new_config['min_samples_leaf'] = new_config.pop('dt_min_samples_leaf')
         new_config['min_samples_split'] = new_config.pop('dt_min_samples_split')
-        new_config["max_features"] = int(np.rint(np.power(n_feat, config["dt_max_features"])))
+        max_features_root =  new_config.pop('dt_max_features')
+        new_config["max_features"] = int(np.rint(np.power(n_feat, max_features_root)))
         model = DecisionTreeClassifier(**new_config,random_state=rng)
 
         return model
