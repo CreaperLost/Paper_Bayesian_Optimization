@@ -184,6 +184,41 @@ class Classification_Benchmark:
         return self.objective_function(configuration, **kwargs)['function_value']
 
 
+    def train_model_on_fold(self, train_config: dict, fold_number: int) -> object:
+        """
+        This function will call .fit of the model to the respective training fold.
+        returns : a trained model object.
+        """
+        config, fidelity, rng = train_config['config'], train_config['fidelity'], train_config['rng']
+        
+        X = self.train_X[fold_number]
+        y = self.train_y[fold_number]
+        train_idx = self.train_idx
+
+        if train_config['optimizer'] == 'typical':
+            model = self.init_model(config=config, fidelity=fidelity, rng = rng, n_feat= X.shape[1] )
+        
+
+        model.fit(X[train_idx],y[train_idx])
+
+        return model
+
+    def train_model_on_all_data(self, train_config:dict) -> object:
+        """
+        responsible to fit the model on both train and validation dataset. 
+        Will be used to get performance estimate on hold-out test set.
+        """
+        config, fidelity, rng = train_config['config'], train_config['fidelity'], train_config['rng']
+        X = np.vstack((self.train_X[0], self.valid_X[0]))
+        y = pd.concat((self.train_y[0], self.valid_y[0]))
+        train_idx = np.arange(len(X))
+
+        if train_config['optimizer'] == 'typical':
+            model = self.init_model(config=config, fidelity=fidelity, rng = rng, n_feat= X.shape[1] )
+        
+        model.fit(X[train_idx],y[train_idx])
+        
+        return model
 
 
     def _train_objective(self,
@@ -196,45 +231,18 @@ class Classification_Benchmark:
         if rng is not None:
             rng = get_rng(rng, self.rng)
 
-        if evaluation == "val":
-            list_of_models = []
-            for fold in range(len(self.train_X)):
-                
-                # initializing model
-                model = self.init_model(config, fidelity, rng, n_feat = self.train_X[fold].shape[1])
-                # preparing data -- Select the fold
-                train_X = self.train_X[fold]
-                train_y = self.train_y[fold]
-                train_idx = self.train_idx
-                
-                model.fit(train_X, train_y)
-                # computing statistics on training data
-                list_of_models.append(model)
+        train_config  = { 'config' : config, 'fidelity' : fidelity,'shuffle' : shuffle, 'rng' : rng, 'optimizer': 'Typical'}
 
-            # initializing model for the test set!
-            model = self.init_model(config, fidelity, rng , n_feat = self.train_X[0].shape[1])
-            train_X = np.vstack((self.train_X[0], self.valid_X[0]))
-            train_y = pd.concat((self.train_y[0], self.valid_y[0]))
-            train_idx = np.arange(len(train_X))
+        if evaluation == "val":
+            list_of_models = [self.train_model_on_fold(train_config = train_config, fold_number = fold) for fold in range(len(self.train_X))]
             
-            # fit on the whole training + validation set once.
-            model.fit(train_X[train_idx], train_y.iloc[train_idx])
-            #Model trained on TRAIN + VALIDATION tests.
-            list_of_models.append(model)
+            list_of_models.append(self.train_model_on_all_data(train_config))
 
             #Return list of models.
             model = list_of_models
 
         else:
-            # initializing model
-            model = self.init_model(config, fidelity, rng, n_feat = self.train_X[0].shape[1])
-
-            train_X = np.vstack((self.train_X[0], self.valid_X[0]))
-            train_y = pd.concat((self.train_y[0], self.valid_y[0]))
-            train_idx = np.arange(len(train_X))
-
-            #Here we got 1 train set. (Train + Validation from Fold 0.)
-            model.fit(train_X[train_idx], train_y.iloc[train_idx])
+            model = self.train_model_on_all_data(train_config)
 
         return model
 
@@ -245,54 +253,38 @@ class Classification_Benchmark:
                          fidelity: Dict,
                          shuffle: bool,
                          rng: Union[np.random.RandomState, int, None] = None,
-                         evaluation: Union[str, None] = "valid",fold = None):
+                         evaluation: Union[str, None] = "valid",
+                         fold:[int,None] = None):
 
         assert fold !=None
-        if rng is not None:
-            rng = get_rng(rng, self.rng)
+        
+        if rng is not None: rng = get_rng(rng, self.rng)
 
-        if isinstance(fold,str):
-            fold = int(fold)       
+        if isinstance(fold,str): fold = int(fold)       
 
-        if evaluation == "val":
-            # initializing model
-            model = self.init_model(config, fidelity, rng, n_feat = self.train_X[fold].shape[1])
-            # preparing data -- Select the fold
-            train_X = self.train_X[fold]
-            train_y = self.train_y[fold]
-            train_idx = self.train_idx
-            # Fit the model                
-            model.fit(train_X, train_y)
+        train_config  = { 'config' : config, 'fidelity' : fidelity,'shuffle' : shuffle, 'rng' : rng, 'optimizer': 'Typical'}
 
-            """# initializing model for the test set!
-            model = self.init_model(config, fidelity, rng , n_feat = self.train_X[0].shape[1])
-            train_X = np.vstack((self.train_X[0], self.valid_X[0]))
-            train_y = pd.concat((self.train_y[0], self.valid_y[0]))
-            train_idx = np.arange(len(train_X))
+        if evaluation == "val": model = self.train_model_on_fold(train_config = train_config, fold_number = fold)
+        else: model = self.train_model_on_all_data(train_config=train_config)
             
-            model.fit(train_X[train_idx], train_y.iloc[train_idx])
-            #Model trained on TRAIN + VALIDATION tests.
-            list_of_models.append(model)"""
-
-            
-        else:
-            # initializing model
-            model = self.init_model(config, fidelity, rng, n_feat = self.train_X[0].shape[1])
-
-            train_X = np.vstack((self.train_X[0], self.valid_X[0]))
-            train_y = pd.concat((self.train_y[0], self.valid_y[0]))
-            train_idx = np.arange(len(train_X))
-
-            #Here we got 1 train set. (Train + Validation from Fold 0.)
-            model.fit(train_X[train_idx], train_y.iloc[train_idx])
-
-            #This does some kind of prediction?
-            # computing statistics on training data
-            scores = dict()
-            for k, v in self.scorers.items():
-                scores[k] = v(model, train_X[train_idx], train_y.iloc[train_idx])
-
         return model
+    
+
+    def apply_model_to_cv(self, model_list: list):
+        """
+        Apply each of the learned model to the appropriate validation set. 
+        Get the AUC score.
+        And return the average score.
+        """
+        val_scores = dict()
+        for k, v in self.scorers.items():
+            #Last model  is for the test set only!
+            val_scores[k] = 0.0
+            for model_fold in range(len(model_list)-1):
+                val_scores[k] += v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
+            val_scores[k] /= (len(model_list)-1)
+        return val_scores["auc"]
+
 
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
@@ -302,23 +294,18 @@ class Classification_Benchmark:
                            shuffle: bool = False,
                            rng: Union[np.random.RandomState, int, None] = None,
                            **kwargs) -> Dict:
-        """Function that evaluates a 'config' on a 'fidelity' on the validation set
+        """
+        Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
         self._check_and_cast_configuration(configuration, self.configuration_space)
+
         #Get a x models trained.
-        model = self._train_objective(configuration, fidelity, shuffle, rng, evaluation="val")
+        model_list = self._train_objective(configuration, fidelity, shuffle, rng, evaluation="val")
 
-        #Get the Validation Score (k-fold average)
-        val_scores = dict()
-        for k, v in self.scorers.items():
-            #Last model  is for the test set only!
-            val_scores[k] = 0.0
-            for model_fold in range(len(model)-1):
-                val_scores[k] += v(model[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-            val_scores[k] /= (len(model)-1)
-        val_loss = 1 - val_scores["auc"]
-
-        return val_loss
+        # Apply the models.
+        auc_score = self.apply_model_to_cv(model_list)
+        
+        return 1 - auc_score # Minimize the auc score loss.
 
 
     #Get the current fold, train a model and then apply on validation set to get AUC score returned.
@@ -359,20 +346,14 @@ class Classification_Benchmark:
         """Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
         self._check_and_cast_configuration(configuration, self.configuration_space)
+
         #Get a x models trained.
-        model = self._train_objective(configuration, fidelity, shuffle, rng=seed, evaluation="val")
+        model_list = self._train_objective(configuration, fidelity, shuffle, rng=seed, evaluation="val")
 
-        #Get the Validation Score (k-fold average)
-        val_scores = dict()
-        for k, v in self.scorers.items():
-            #Last model  is for the test set only!
-            val_scores[k] = 0.0
-            for model_fold in range(len(model)-1):
-                val_scores[k] += v(model[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-            val_scores[k] /= (len(model)-1)
-        val_loss = 1 - val_scores["auc"]
+       # Apply the models.
+        auc_score = self.apply_model_to_cv(model_list)
 
-        return val_loss
+        return 1 - auc_score
 
 
     # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
@@ -501,7 +482,6 @@ class Classification_Benchmark:
     def mango_objective_LinearSVM(self,args_list):
         return self.mango_generic_objective(args_list,LINEAR_SVM_NAME)
     
-
     def mango_objective_RBFSVM(self,args_list):
         return self.mango_generic_objective(args_list,RBF_SVM_NAME)
 

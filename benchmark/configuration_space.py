@@ -399,11 +399,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
         rng = self.rng if rng is None else rng
         rng = rng if (rng is None or isinstance(rng, int)) else self.seed
 
-
-        
-
         tmp_config = config.copy()
-        
         
         model_type = tmp_config.pop('model')
 
