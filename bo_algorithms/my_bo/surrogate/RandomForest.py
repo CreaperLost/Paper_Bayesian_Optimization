@@ -32,6 +32,8 @@ class  Simple_RF(BaseModel):
         else:
             self.rng = rng
 
+        print(f'My local random forest is deterministic by using seed : {rng,self.rng}')
+
         self.n_estimators =  n_estimators
         self.rf = RandomForestRegressor(n_estimators = 100,random_state=rng,n_jobs=-1)
         self.standardize_output = STD_OUT

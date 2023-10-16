@@ -432,7 +432,7 @@ class Per_Group_Bayesian_Optimization:
         res = self.f(self.add_group_name_to_config(config))
         
         #Get the AUC - R2 etc.
-        fX_next = res['function_value']
+        fX_next = res #['function_value']
         #print(self.group_name,fX_next)
  
         #Increase the number of evaluations

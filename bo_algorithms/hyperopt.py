@@ -14,11 +14,12 @@ class HyperOpt:
         self.max_evals = max_evals
         self.seed = seed 
         self.rng = np.random.default_rng(self.seed)
+
+        print(f'HyperOpt {self.seed, self.rng}')
         
         self.fX = np.array([])
         self.X_group = np.array([])
         
-
         self.acquisition_time = np.array([0 for i in range(max_evals)])
         self.surrogate_time = np.array([0 for i in range(max_evals)])
         self.objective_time = np.array([0 for i in range(max_evals)])

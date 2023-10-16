@@ -22,6 +22,7 @@ class Random_Search:
         #Set a seed.
         self.seed = random_seed
         self.rng = np.random.RandomState(self.seed)
+        print(f'Random Search {self.seed, self.rng}')
 
         self.n_init = n_init #Initial configurations
         self.max_evals = max_evals #Maxmimum evaluations

@@ -16,6 +16,10 @@ class SMAC_HPO:
         self.scenario = Scenario(configspace,name='Dataset'+str(task_id),
                                            output_directory='single_smac' +'/'+repo,
                                      n_trials=max_evals,deterministic=True,seed=seed,n_workers = n_workers )
+        
+
+        print('SMAC SEED' , seed)
+        print('SMAC SCENARIO', self.scenario.seed)
         self.initial_design = None
         if init_evals != None:
             self.initial_design = HyperparameterOptimizationFacade.get_initial_design(self.scenario, n_configs=init_evals)

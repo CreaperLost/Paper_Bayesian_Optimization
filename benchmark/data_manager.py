@@ -22,12 +22,14 @@ class OpenMLDataManager(DataManager):
 
     def __init__(self, task_id: int,
                  data_path: Union[str, Path, None] = None,
-                 global_seed: Union[int, None] = 1,
+                 seed: int = None,
                  n_folds :int = 5,
                  use_holdout = False):
 
         self.task_id = task_id
-        self.global_seed = global_seed
+        assert seed != None
+        self.seed = seed
+        print(f'Data Manager Seed {seed}')
 
         self.train_X = []
         self.valid_X = []
@@ -145,7 +147,7 @@ class OpenMLDataManager(DataManager):
         # validation set is fixed as per the global seed independent of the benchmark seed
 
         #Instead of this please do cross-validation
-        skf = StratifiedKFold(n_splits=self.n_folds,shuffle=True,random_state=self.global_seed)
+        skf = StratifiedKFold(n_splits=self.n_folds,shuffle=True,random_state=self.seed)
         for train_index, val_index in skf.split(train_x, train_y):
             X_train = train_x.iloc[train_index]
             y_train = train_y.iloc[train_index]

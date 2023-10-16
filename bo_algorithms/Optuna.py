@@ -13,19 +13,16 @@ class Optuna:
         
         self.objective_function = objective_function
         self.max_evals = max_evals
-        self.seed =seed 
+        self.seed = seed 
         
-
+        print(f'Optuna {self.seed}')
         #Basic TPE
         self.sampler = TPESampler(n_startup_trials = n_init,seed=self.seed)
         #Don't prune
-        self.pruner=optuna.pruners.NopPruner()
+        self.pruner= optuna.pruners.NopPruner()
 
         self.study = optuna.create_study(direction='minimize',sampler=self.sampler,pruner=self.pruner)
         
-
-
-
         # Extra stuff for the future
         """self.save_configuration={}
 
@@ -46,17 +43,13 @@ class Optuna:
         self.total_time = pd.DataFrame(columns=['Time','Score'])  
     
     def run(self):
-        start_time = time.time()
-
 
         self.study.optimize(self.objective_function, n_trials=self.max_evals,n_jobs=1) 
 
         print(self.study.best_trial)
 
-
         self.fX = np.array([trial.values[0] for trial in self.study.trials])
 
         print(self.fX)
 
-        end_time = time.time()
             

@@ -13,37 +13,11 @@ from benchmark.hyper_parameters import *
 
 # this needs to change.
     # Group_MultiFold_MLBenchmark
-class Classification_Configuration_Space(Classification_Benchmark):
-    def __init__(self, 
-                 task_id: int, 
-                 seed: int,
-                 data_path: Union[str, None] = None,
-                 data_repo:str = 'OpenML', 
-                 use_holdout =False,
-                 ):
-        super(Classification_Configuration_Space, self).__init__(task_id, seed, data_path,data_repo,use_holdout)
+class Classification_Configuration_Space:
 
-        # Initializer function per group.
-        self.initializers = {}
-
-        # Initialize the function per group using the specified group list.
-        for model in model_list:
-            if XGB_NAME == model:
-                self.initializers[model] = self.init_xgb
-            elif LINEAR_SVM_NAME == model:
-                self.initializers[model] = self.init_linear_svm
-            elif model == RBF_SVM_NAME:
-                self.initializers[model] = self.init_rbf_svm
-            elif DT_NAME == model:
-                self.initializers[model] = self.init_dt
-            elif RF_NAME == model:
-                self.initializers[model] = self.init_rf
-            else:
-                raise RuntimeError
-                
-        print(f'Seed in Configuration Space Init: {self.seed}')
-
-
+    def __init__(self):
+        self.seed = 1
+    
     def unraveling_hyper_parameter(self, dictionary_of_hp):
         """
             Get's the transformation, lower, upper bound for the requested hyper-parameter
@@ -345,8 +319,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
         assert n_feat != None
         new_config = self.cast_config_space(config,RF_NAME)
         new_config["max_features"] = int(np.rint(np.power(n_feat, config["max_features"])))
-        new_config['n_estimators'] = 500
-        print(new_config)
+
         model = RandomForestClassifier(**new_config, bootstrap=True,random_state=pass_seed,n_jobs=-1)
         return model
 

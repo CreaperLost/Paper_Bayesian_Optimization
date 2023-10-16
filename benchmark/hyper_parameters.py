@@ -42,7 +42,7 @@ hyper_parameters_dictionary = {
             HP_TYPE: INTEGER_HP, 
         },
         "min_samples_split" :{
-            LOWER_BOUND: 1 ,
+            LOWER_BOUND: 2 ,
             UPPER_BOUND: 128,
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
@@ -53,12 +53,7 @@ hyper_parameters_dictionary = {
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
         },
-        "n_estimators": {
-            LOWER_BOUND: 1,
-            UPPER_BOUND: 1000,
-            TRANSFORM_TYPE:None,
-            HP_TYPE:INTEGER_HP,
-        },
+        
         "max_features":{
             LOWER_BOUND: 0,
             UPPER_BOUND: 1.0,
@@ -75,7 +70,7 @@ hyper_parameters_dictionary = {
             HP_TYPE: INTEGER_HP,
         },
         "dt_min_samples_split" :{
-            LOWER_BOUND: 1 ,
+            LOWER_BOUND: 2,
             UPPER_BOUND: 128,
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
@@ -128,7 +123,7 @@ hyper_parameters_dictionary = {
         },
         "XGB_max_depth": {
             LOWER_BOUND : 1,
-            UPPER_BOUND : 30,
+            UPPER_BOUND : 50,
             TRANSFORM_TYPE:None,
             HP_TYPE: INTEGER_HP,
         },
@@ -190,6 +185,11 @@ hyper_parameters_dictionary = {
     },
 
 }
-
+""""n_estimators": {
+            LOWER_BOUND: 100,
+            UPPER_BOUND: 1000,
+            TRANSFORM_TYPE:None,
+            HP_TYPE:INTEGER_HP,
+        },"""
 
 model_list = [XGB_NAME,LINEAR_SVM_NAME,RF_NAME,DT_NAME,RBF_SVM_NAME]

@@ -16,7 +16,8 @@ class Mango:
             objective_list.append(objective_functions[i])
         
         
-
+        self.seed = seed 
+        print(f'Mango {self.seed}')
         # Save configuration space here, Mango needs a list of configuration spaces.
         self.configspace = list_config_space
 
@@ -46,7 +47,7 @@ class Mango:
 
         self.max_evals = max_evals -  (len(objective_list) * n_init)
         # Remove the 10 initial total random configurations...
-        self.metatuner = MetaTuner(list_config_space, objective_list,n_init=n_init,n_iter=self.max_evals )
+        self.metatuner = MetaTuner(list_config_space, objective_list,n_init=n_init,n_iter=self.max_evals, seed= self.seed)
     
     def run(self):
         start_time = time.time()

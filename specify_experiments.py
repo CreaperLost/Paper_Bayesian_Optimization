@@ -8,14 +8,23 @@ RF_LOCAL = 'RF_Local'
 
 
 OPTIMIZERS = [
+    
+    RF_LOCAL,
+    MANGO,
+    RANDOM_SEARCH,  
     HYPEROPT,
     SMAC,
-    RANDOM_SEARCH,
-    MANGO,
-    RF_LOCAL,
     OPTUNA,
+ 
 ]
 
+
+"""
+ 
+    
+ 
+
+"""
 
 
 FULL_CLASSIFICATION_AUTOML_LIST = [3, 11, 12, 14, 15, 16, 18, 22, 23, 
@@ -27,9 +36,13 @@ FULL_CLASSIFICATION_AUTOML_LIST = [3, 11, 12, 14, 15, 16, 18, 22, 23,
                 146800, 146817, 146819, 146820, 146821, 146822, 
                 146824, 167140, 167141, 146818, 168910, 168911, 168912]
 
+HALF_CLASSIFICATION_AUTOML_LIST = [15, 23, 29, 43, 45, 2047, 
+                                   2079, 3902, 3912, 3917, 9971 ,
+                                   9952, 9957, 9976, 9978 ,14954, 
+                                   146817, 14969, 167141, 10101, 146818, 3560]
 
-N_SEEDS = [1]
+N_SEEDS = [1,2,3,4,5]
 
 
-N_INIT = 2
-N_MAXIMUM = 20
+N_INIT = 10
+N_MAXIMUM = 350

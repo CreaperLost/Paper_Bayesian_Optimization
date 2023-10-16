@@ -64,7 +64,7 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                 total_time_per_optimizer_directory = os.path.join(os.getcwd(),main_directory,type_of_bench,benchmark_name,'Total_Time',data_repo,task_id_str,Seed_id_str,opt)
                 config_per_group_directory = os.path.join(os.getcwd(),main_directory,type_of_bench,benchmark_name,'Configurations',data_repo,task_id_str,Seed_id_str,opt)
 
-                benchmark_ = benchmark_class(task_id=task_id,rng=seed,data_repo=data_repo)
+                benchmark_ = benchmark_class(task_id=task_id,seed=seed,data_repo=data_repo)
                 #Get the config Space
                 configspace,config_dict = benchmark_.get_configuration_space()
 
@@ -113,7 +113,6 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                     print(opt)
                     raise RuntimeError
                 
-
 
                 start_time = time.time()
                 Optimization.run()
