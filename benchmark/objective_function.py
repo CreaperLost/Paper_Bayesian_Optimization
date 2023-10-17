@@ -14,13 +14,14 @@ import numpy as np
 
 from ConfigSpace.util import deactivate_inactive_hyperparameters
 
-from benchmark.data_manager import OpenMLDataManager
 from benchmark.hold_out_datamanager import Holdout_OpenMLDataManager
 
 import copy 
 
 from benchmark.hyper_parameters import *
-    
+import os 
+from pathlib import Path
+
     
     
 metrics = dict(
@@ -38,17 +39,30 @@ class Classification_Benchmark:
             self,
             task_id: int,
             seed: int = None,
-            data_path: Union[str, Path, None] = None,
-            data_repo:str = 'Jad',
-            use_holdout =False,
+            data_path: Union[str, Path, None] = None, optimizer = None, experiment = None
     ):
         assert seed != None
+        assert optimizer != None
+        assert experiment != None
+
+        self.optimizer = optimizer 
+        self.experiment = experiment
+
+
+        # Current configuration.
+        self.iter = 0
+
+        print(f'Current optimizer ====== {self.optimizer}')
 
         self.seed = seed
         
         self.rng = np.random.RandomState(np.abs(self.seed))
 
+
+        # Task ID.
         self.task_id = task_id
+
+
         self.scorers = dict()
         for k, v in metrics.items():
             self.scorers[k] = make_scorer(v, **metrics_kwargs[k])
@@ -173,9 +187,8 @@ class Classification_Benchmark:
         if train_config['optimizer'] == 'typical':
             model = self.init_model(config=config, n_feat= X.shape[1], seed = seed )
         elif train_config['optimizer'] == 'mango':
-            model = self.mango_init_model(config, n_feat = X.shape[1],model_type= train_config['model_type'], seed= seed)
-        
-        model.fit(X[train_idx],y[train_idx])
+            model = self.mango_init_model(config, n_feat = X.shape[1],model_type= train_config['model_type'])
+        model.fit(X[train_idx],y.iloc[train_idx])
         
         return model
 
@@ -222,6 +235,7 @@ class Classification_Benchmark:
         for k, v in self.scorers.items():
             #Get the score of a model on the specific set. (1-fold only run.)
             val_scores[k] = v(model, self.valid_X[fold], self.valid_y[fold])
+        self.get_model_predictions_fold(model,fold)
         return val_scores["auc"]
 
     def apply_model_to_cv(self, model_list: list) -> float:
@@ -236,8 +250,10 @@ class Classification_Benchmark:
             val_scores[k] = 0.0
             for model_fold in range(len(model_list)):
                 val_scores[k] += v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
+                self.get_model_predictions_fold(model_list[model_fold],model_fold)
             val_scores[k] /= (len(model_list))
             print(f'{k},{v},#Folds : {len(model_list)}')
+           
         return val_scores["auc"]
     
     def apply_model_to_holdout(self, model:object) -> int:
@@ -250,8 +266,75 @@ class Classification_Benchmark:
         test_scores = dict()
         for k, v in self.scorers.items():
             test_scores[k] = v(model, self.test_X, self.test_y)
-
+        self.get_model_predictions_holdout(model)
         return test_scores["auc"]
+    
+    def make_path(self, path):
+        try:
+            Path(path).mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
+            print("Folder is already there")
+        else:
+            print("Folder is created there")
+
+    def get_model_predictions_fold(self, model:object, fold:int) -> None:
+        prob_preds = model.predict_proba( self.valid_X[fold] ) 
+
+        # Store predictions
+        preds_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'CV',str(fold),self.optimizer)
+        # Store labels in the directory.
+        labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'CV',str(fold),'labels')
+
+        # Create directories
+        self.make_path(preds_directory)
+        self.make_path(labels_directory)
+
+
+        # save predictions per configuration
+        path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
+        pd.DataFrame(prob_preds).to_csv(path_per_config)
+
+        
+        # If label.csv exists then ignore, else write it.
+        labels_file = os.path.join(labels_directory,'labels.csv')
+        if not os.path.exists( labels_file ):
+            pd.DataFrame(self.test_y).to_csv(labels_file)
+        else:
+            print('Labels exist.')
+
+    def get_model_predictions_holdout(self, model:object) -> None:
+        
+
+
+        # Store the score of the optimizer
+        preds_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout',self.optimizer)
+        # Create directories
+        self.make_path(preds_directory)
+
+        # save predictions per configuration
+        path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
+        
+
+        # IF holdout has not run yet. ( Only triggered the first time for CV. Useful for single-fold.)
+        if not os.path.exists( path_per_config ):
+            # Get the predictions from the model.
+            prob_preds = model.predict_proba( self.test_X ) 
+            pd.DataFrame(prob_preds).to_csv(path_per_config)
+        else:
+            print('Labels exist.')
+
+        
+        
+        
+        # Set the labels directory
+        labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout','labels')
+        self.make_path(labels_directory)        
+        # If label.csv exists then ignore, else write it.
+        labels_file = os.path.join(labels_directory,'labels.csv')
+        if not os.path.exists( labels_file ):
+            pd.DataFrame(self.test_y).to_csv(labels_file)
+        else:
+            print('Labels exist.')
 
 
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
@@ -269,12 +352,17 @@ class Classification_Benchmark:
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
 
+        test_auc_score = self.objective_function_test(configuration)
+
+        self.iter += 1
+
+        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
         
         return 1 - auc_score # Minimize the auc score loss.
 
 
     #Get the current fold, train a model and then apply on validation set to get AUC score returned.
-    def objective_function_per_fold(self, configuration: Union[CS.Configuration, Dict], fold=None) -> Dict:
+    def objective_function_per_fold(self, configuration: Union[CS.Configuration, Dict], fold=None) -> float:
         """Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
         assert fold!= None
@@ -287,13 +375,17 @@ class Classification_Benchmark:
         # Get validation performance of a specific fold.
         auc_score = self.apply_model_to_valid_fold(model,fold)
 
+        test_auc_score = self.objective_function_test(configuration)
+
+        print(f'CV Score : {1- auc_score} , Holdout Score {test_auc_score}')
+
         # check this one. Val_loss
         return 1 - auc_score
 
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
     def smac_objective_function(self,
-                           configuration: Union[CS.Configuration, Dict], seed:int) -> Dict:
+                           configuration: Union[CS.Configuration, Dict], seed:int) -> float:
         """Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
         self._check_and_cast_configuration(configuration, self.configuration_space)
@@ -304,12 +396,19 @@ class Classification_Benchmark:
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
 
+
+        test_auc_score = self.objective_function_test(configuration)
+        
+        self.iter += 1
+
+        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+
         return 1 - auc_score
 
 
     # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
-    def objective_function_test(self, configuration: Union[CS.Configuration, Dict]) -> Dict:
+    def objective_function_test(self, configuration: Union[CS.Configuration, Dict]) -> float:
         """Function that evaluates a 'config' on a 'fidelity' on the test set"""
 
         self._check_and_cast_configuration(configuration, self.configuration_space)
@@ -318,7 +417,7 @@ class Classification_Benchmark:
 
         hold_out_auc_score = self.apply_model_to_holdout(model)
 
-        return 1- hold_out_auc_score
+        return 1 - hold_out_auc_score
 
 
 
@@ -350,9 +449,28 @@ class Classification_Benchmark:
 
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
+
+
+        # Change
+        test_auc_score = self.mango_function_test(configuration,model_type)
+
+        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+
+        self.iter += 1
         
         return 1 - auc_score
     
+
+    # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
+    # pylint: disable=arguments-differ
+    def mango_function_test(self, configuration: Union[CS.Configuration, Dict], model_type = None) -> float:
+        """Function that evaluates a 'config' on a 'fidelity' on the test set"""
+
+        model = self.mango_train_objective(configuration, evaluation="test",model_type=model_type)
+
+        hold_out_auc_score = self.apply_model_to_holdout(model)
+
+        return 1 - hold_out_auc_score
 
     
     def mango_generic_objective(self, args_list, model_type):
@@ -398,7 +516,27 @@ class Classification_Benchmark:
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
 
+        # CHANGE.
+        test_auc_score = self.optuna_function_test(model_to_train)
+
+        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+
+        self.iter += 1
+
         return 1 - auc_score
+    
+    # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
+    # pylint: disable=arguments-differ
+    def optuna_function_test(self, configuration: Union[CS.Configuration, Dict]) -> float:
+        """Function that evaluates a 'config' on a 'fidelity' on the test set"""
+
+        self._check_and_cast_configuration(configuration, self.configuration_space)
+
+        model = self.optuna_train(configuration, evaluation="test")
+
+        hold_out_auc_score = self.apply_model_to_holdout(model)
+
+        return 1 - hold_out_auc_score
 
     
 
@@ -430,5 +568,21 @@ class Classification_Benchmark:
 
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
+
+        # Change
+        test_auc_score = self.hyperopt_function_test(configuration)
+
+        print(f'CV Score : { 1- auc_score } , Holdout Score {test_auc_score}')
+
+        self.iter += 1
         
         return 1-auc_score
+    
+    def hyperopt_function_test(self, configuration: Union[CS.Configuration, Dict]) -> float:
+        """Function that evaluates a 'config' on a 'fidelity' on the test set"""
+
+        model = self.hyperopt_train_objective(configuration, evaluation="test")
+
+        hold_out_auc_score = self.apply_model_to_holdout(model)
+
+        return 1 - hold_out_auc_score

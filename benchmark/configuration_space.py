@@ -17,11 +17,15 @@ class Classification_Configuration_Space(Classification_Benchmark):
     def __init__(self, 
                  task_id: int, 
                  seed: int,
-                 data_path: Union[str, None] = None,
-                 data_repo:str = 'OpenML', 
-                 use_holdout =False,
+                 optimizer: str = None,
+                 data_path: Union[str, None] = None,experiment = None
                  ):
-        super(Classification_Configuration_Space, self).__init__(task_id, seed, data_path,data_repo,use_holdout)
+        super(Classification_Configuration_Space, self).__init__(task_id, seed, data_path, optimizer=optimizer,experiment = experiment)
+
+
+        assert optimizer != None
+
+        self.optimizer = optimizer
 
         # Initializer function per group.
         self.initializers = {}

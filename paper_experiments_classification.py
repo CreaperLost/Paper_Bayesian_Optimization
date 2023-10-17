@@ -64,55 +64,58 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                 total_time_per_optimizer_directory = os.path.join(os.getcwd(),main_directory,type_of_bench,benchmark_name,'Total_Time',data_repo,task_id_str,Seed_id_str,opt)
                 config_per_group_directory = os.path.join(os.getcwd(),main_directory,type_of_bench,benchmark_name,'Configurations',data_repo,task_id_str,Seed_id_str,opt)
 
-                benchmark_ = benchmark_class(task_id=task_id,seed=seed,data_repo=data_repo)
-                #Get the config Space
-                configspace,config_dict = benchmark_.get_configuration_space()
-
-                #Get the benchmark.
-                smac_objective_function = benchmark_.smac_objective_function
+                benchmark_ = benchmark_class(task_id=task_id,seed=seed,optimizer=opt,experiment = EXPERIMENT)
                 
-                #Get the benchmark.
-                objective_function = benchmark_.objective_function
                 
                 #Get the objective_function per fold.
                 objective_function_per_fold = benchmark_.objective_function_per_fold
-
-
-                optuna_objective = benchmark_.optuna_objective
                 
-                hyperopt_objective = benchmark_.hyperopt_objective_function
-                hyperopt_space = benchmark_.get_hyperopt_configspace()
-
-
-                mango_config_space = benchmark_.get_mango_config_space()
-                mango_objectives  ={ DT_NAME: benchmark_.mango_objective_dt,
-                                     XGB_NAME: benchmark_.mango_objective_xgb,
-                                     LINEAR_SVM_NAME : benchmark_.mango_objective_LinearSVM,
-                                     RBF_SVM_NAME : benchmark_.mango_objective_RBFSVM,
-                                     RF_NAME: benchmark_.mango_objective_RF}
-
                 print('Currently running ' + opt + ' on seed ' + str(seed) + ' dataset ' + str(task_id) )
 
                 
                 if opt == RANDOM_SEARCH:
+                    #Get the benchmark.
+                    objective_function = benchmark_.objective_function
+                    #Get the config Space
+                    configspace,config_dict = benchmark_.get_configuration_space()
+
                     Optimization = Random_Search(f=objective_function,configuration_space= configspace,n_init = n_init,max_evals= max_evals,random_seed=seed)
                 # make sure smac has same intial configurations
                 elif opt == SMAC:
+                    #Get the benchmark objective.
+                    smac_objective_function = benchmark_.smac_objective_function
+                    #Get the config Space
+                    configspace,config_dict = benchmark_.get_configuration_space()
+
                     Optimization = SMAC_HPO(configspace=configspace,config_dict=config_dict,task_id=task_id,
                     repo=data_repo,max_evals=max_evals,seed=seed,objective_function=smac_objective_function,n_workers=1,init_evals = 5*n_init)
                 elif opt == RF_LOCAL:
+                    #Get the benchmark.
+                    objective_function = benchmark_.objective_function
+                    #Get the config Space
+                    configspace,config_dict = benchmark_.get_configuration_space()
                     Optimization = RF_Local(f=objective_function, model='RF' ,lb= None, ub =None ,configuration_space=config_dict,\
                                                 n_init=n_init,max_evals=max_evals,initial_design=None,random_seed=seed,maximizer='Sobol_Local')
                 elif opt == OPTUNA: # Optuna needs specifically the n_init over all groups
+                    optuna_objective = benchmark_.optuna_objective
                     Optimization = Optuna(5*n_init,max_evals,seed,optuna_objective)
                 elif opt == HYPEROPT: # HyperOpt needs specifically the n_init over all groups
+                    hyperopt_objective = benchmark_.hyperopt_objective_function
+                    hyperopt_space = benchmark_.get_hyperopt_configspace()
                     Optimization = HyperOpt(5*n_init,max_evals,seed,hyperopt_objective,hyperopt_space)
                 elif opt == MANGO: #mango runs init per group ( * 5)
+                    mango_config_space = benchmark_.get_mango_config_space()
+                    mango_objectives  = { DT_NAME: benchmark_.mango_objective_dt,
+                                        XGB_NAME: benchmark_.mango_objective_xgb,
+                                        LINEAR_SVM_NAME : benchmark_.mango_objective_LinearSVM,
+                                        RBF_SVM_NAME : benchmark_.mango_objective_RBFSVM,
+                                        RF_NAME: benchmark_.mango_objective_RF}
                     Optimization = Mango(mango_config_space,n_init,max_evals,seed,mango_objectives)
                 else: 
                     print(opt)
                     raise RuntimeError
                 
+
 
                 start_time = time.time()
                 Optimization.run()

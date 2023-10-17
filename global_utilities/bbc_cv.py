@@ -21,7 +21,6 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
 
     # Select the appropriate metric.
     if analysis_type == 'classification':
-
         metric = roc_auc_score # you can replace this to use a different metric if you like
     else:
         metric = r2_score # you can replace this to use a different metric if you like
