@@ -89,6 +89,8 @@ class Classification_Benchmark:
         self.lower_bound_train_size = dm.lower_bound_train_size
         self.n_classes = dm.n_classes
 
+        self.inversion_need = False
+
         # Observation and fidelity spaces
         self.configuration_space, _ = self.get_configuration_space()
 
@@ -148,6 +150,34 @@ class Classification_Benchmark:
         return self.objective_function(configuration, **kwargs)['function_value']
 
 
+    def check_inversion_trick(self, prediction, y):
+        """
+        Responsible to save us from problematic SVM class.
+        Flip the predictions if auc <0.5 (for SVMs.)
+        returns False, if flipping not needed, returns True if flipping is needed.
+        """
+
+        # Multi-Class will be left as is for now.
+        if y.shape[1] > 2:
+            return False
+            
+        auc = roc_auc_score(y,prediction[:,1])
+        if auc < 0.5:
+            return True
+        
+        return False
+    
+    def call_evaluation_process(self, evaluation: str, config: dict) -> Union[list,object]:
+        if evaluation == "val":
+            model = []
+            for fold in range(len(self.train_X)):       
+                tmp_model  = self.train_model_on_fold(train_config = config, fold_number = fold) 
+                model.append(tmp_model)
+        else: 
+            model = self.train_model_on_all_data(config)
+
+        return model
+
     def train_model_on_fold(self, train_config: dict, fold_number: int) -> object:
         """
         This function will call .fit of the model to the respective training fold.
@@ -167,15 +197,9 @@ class Classification_Benchmark:
         
         model.fit(X,y)
         
-        y_expected=model.predict_proba(X)
-        print(X.shape)
-        print(f'Train AUC : {roc_auc_score(y,y_expected,multi_class="ovr")} fold : {fold_number}')
-        """if roc_auc_score(y,y_expected[:,1]) < 0.5:
-            print(model.decision_function(X))
-            print('Very LOW',roc_auc_score(y,y_expected[:,1],multi_class="ovr"))
-            print(y_expected,y)
-            print(roc_auc_score(y,y_expected[:,0],multi_class="ovr"))
-            raise ValueError"""
+        pred = model.predict_proba(X)
+        self.inversion = self.check_inversion_trick(pred,y)
+
         return model
 
     def train_model_on_all_data(self, train_config:dict) -> object:
@@ -187,7 +211,6 @@ class Classification_Benchmark:
 
         seed = train_config.get('seed',self.seed)
 
-
         X = np.vstack((self.train_X[0], self.valid_X[0]))
         y = pd.concat((self.train_y[0], self.valid_y[0]))
         
@@ -197,6 +220,7 @@ class Classification_Benchmark:
             model = self.init_model(config=config, n_feat= X.shape[1], seed = seed )
         elif train_config['optimizer'] == 'mango':
             model = self.mango_init_model(config, n_feat = X.shape[1],model_type= train_config['model_type'])
+        
         model.fit(X[train_idx],y.iloc[train_idx])
         
         return model
@@ -215,8 +239,7 @@ class Classification_Benchmark:
 
         train_config  = { 'config' : config, 'optimizer': 'typical', 'seed': pass_seed}
 
-        if evaluation == "val": model = [self.train_model_on_fold(train_config = train_config, fold_number = fold) for fold in range(len(self.train_X))]
-        else: model = self.train_model_on_all_data(train_config)
+        model = self.call_evaluation_process(evaluation, train_config)     
 
         return model
 
@@ -233,8 +256,10 @@ class Classification_Benchmark:
 
         train_config  = { 'config' : config, 'optimizer': 'Typical'}
 
-        if evaluation == "val": model = self.train_model_on_fold(train_config = train_config, fold_number = fold)
-        else: model = self.train_model_on_all_data(train_config=train_config)
+        if evaluation == "val": 
+            model = self.train_model_on_fold(train_config = train_config, fold_number = fold)
+        else: 
+            model = self.train_model_on_all_data(train_config=train_config)
             
         return model
     
@@ -257,25 +282,14 @@ class Classification_Benchmark:
         for k, v in self.scorers.items():
             #Last model  is for the test set only!
             val_scores[k] = 0.0
-            score_l = []
             for model_fold in range(len(model_list)):
                 
                 score_on_fold = v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-                score_l.append(score_on_fold)
                 val_scores[k] += score_on_fold
-                preds = self.get_model_predictions_fold(model_list[model_fold],model_fold)
-                tmp_score = roc_auc_score(self.valid_y[model_fold], preds[:,1])
-                print(f'Current Model Fold is {model_fold,abs(score_on_fold - tmp_score)}')
-                if abs(score_on_fold - tmp_score) > 0.001:
-                    print(f'Score on fold is {score_on_fold}')
-                    print(f'TMP Score on fold is {tmp_score}')
-                    raise ValueError
-            print(val_scores[k], (len(model_list)), val_scores[k] / (len(model_list)),np.mean(score_l))
-            
+                self.get_model_predictions_fold(model_list[model_fold],model_fold)
+
             val_scores[k] /= (len(model_list))
-            if abs(val_scores[k]  - np.mean(score_l)) > 0.001:
-                print(f'HUGE : {val_scores[k] , np.mean(score_l)}')
-                raise ValueError
+         
            
         return val_scores["auc"]
     
@@ -314,13 +328,17 @@ class Classification_Benchmark:
         self.make_path(preds_directory)
         self.make_path(labels_directory)
 
-
         # save predictions per configuration
         path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
         #prob_preds = np.around(prob_preds,4)
+
+        if self.inversion == True:
+            print('Need to invert!')
+            print(f'Before : {prob_preds}')
+            prob_preds = prob_preds[:,[1,0]]
+            print(f'After :{prob_preds}')
         pd.DataFrame(prob_preds).to_csv(path_per_config)
 
-        
         # If label.csv exists then ignore, else write it.
         labels_file = os.path.join(labels_directory,'labels.csv')
         if not os.path.exists( labels_file ):
@@ -333,8 +351,6 @@ class Classification_Benchmark:
 
     def get_model_predictions_holdout(self, model:object) -> None:
         
-
-
         # Store the score of the optimizer
         preds_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout',self.optimizer)
         # Create directories
@@ -343,7 +359,6 @@ class Classification_Benchmark:
         # save predictions per configuration
         path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
         
-
         # IF holdout has not run yet. ( Only triggered the first time for CV. Useful for single-fold.)
         if not os.path.exists( path_per_config ):
             # Get the predictions from the model.
@@ -353,8 +368,6 @@ class Classification_Benchmark:
         else:
             pass #print('Labels exist.')
 
-        
-        
         
         # Set the labels directory
         labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout','labels')
@@ -426,7 +439,6 @@ class Classification_Benchmark:
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
 
-
         test_auc_score = self.objective_function_test(configuration)
         
         self.iter += 1
@@ -434,7 +446,6 @@ class Classification_Benchmark:
         print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
 
         return 1 - auc_score
-
 
     # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
@@ -449,9 +460,6 @@ class Classification_Benchmark:
 
         return 1 - hold_out_auc_score
 
-
-
-
     #Mango Specific Objective Functions!
     def mango_train_objective(self,
                          config: Dict,
@@ -460,11 +468,9 @@ class Classification_Benchmark:
 
         assert model_type != None
 
-
         train_config  = { 'config' : config, 'optimizer': 'mango', 'model_type': model_type}
         
-        if evaluation == "val": model = [self.train_model_on_fold(train_config = train_config, fold_number = fold) for fold in range(len(self.train_X))]
-        else: model = self.train_model_on_all_data(train_config)
+        model =  self.call_evaluation_process(self, evaluation, train_config) 
             
         return model
 
@@ -490,7 +496,6 @@ class Classification_Benchmark:
         
         return auc_score
     
-
     # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
     def mango_function_test(self, configuration: Union[CS.Configuration, Dict], model_type = None) -> float:
@@ -502,7 +507,6 @@ class Classification_Benchmark:
 
         return 1 - hold_out_auc_score
 
-    
     def mango_generic_objective(self, args_list, model_type):
         return [self.mango_objective_function(configuration = hyper_par,model_type = model_type) for hyper_par in args_list]
     
@@ -521,17 +525,13 @@ class Classification_Benchmark:
     def mango_objective_RF(self,args_list):
         return self.mango_generic_objective(args_list,RF_NAME)
     
-
-    
     def optuna_train(self, config, evaluation='val'):
         #Mango Specific Objective Functions
-
         assert config != None
 
         train_config  = { 'config' : config, 'optimizer': 'typical'}
 
-        if evaluation == "val": model = [self.train_model_on_fold(train_config = train_config, fold_number = fold) for fold in range(len(self.train_X))]
-        else: model = self.train_model_on_all_data(train_config)
+        model = self.call_evaluation_process(evaluation, train_config) 
 
         return model
 
@@ -570,19 +570,14 @@ class Classification_Benchmark:
 
     
 
-    def hyperopt_train_objective(self,
-                         config: Dict,
-                         evaluation: Union[str, None] = "valid"):
-
+    def hyperopt_train_objective(self, config: Dict, evaluation: Union[str, None] = "valid"):
 
         curr_config = config['model'] # You need to access this.
-
 
         # Make sure to put curr_config and not the original config in here.
         train_config  = { 'config' : curr_config, 'optimizer': 'typical'}
 
-        if evaluation == "val": model = [self.train_model_on_fold(train_config = train_config, fold_number = fold) for fold in range(len(self.train_X))]
-        else: model = self.train_model_on_all_data(train_config)
+        model = self.call_evaluation_process(evaluation, train_config) 
 
         return model
 

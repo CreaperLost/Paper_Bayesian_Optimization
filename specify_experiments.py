@@ -9,8 +9,6 @@ RF_LOCAL = 'RF_Local'
 
 OPTIMIZERS = [
     MANGO,
-  
-
 ]
 """
       RF_LOCAL,
@@ -26,6 +24,74 @@ OPTIMIZERS = [
  
 
 """
+
+
+ABLATION_CONFIG_LIST =[
+    {'GP' : 
+    {'SURROGATE' : 'GP',
+     'ACQ_GRID': 10000,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+     }
+    },
+    {'RF' : 
+    {'SURROGATE' : 'RF',
+     'ACQ_GRID': 10000,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+     }
+    },
+    {'RF_GRID' : 
+    {'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+     }
+    },
+    {'RF_GRID_LOCAL' : 
+    {'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+     }
+    },
+    {'RF_GRID_LOCAL_TRANS' : 
+    {'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : True,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+     }
+    },
+    {'RF_GRID_LOCAL_TRANS_INIT' : 
+    {'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : True,
+     'N_INIT'  :10,
+     'ADAPTIVE': False,
+     }
+    },
+    {'RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE' : 
+    {'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : True,
+     'N_INIT'  :10,
+     'ADAPTIVE': True,
+     }
+    }
+
+]
 
 
 FULL_CLASSIFICATION_AUTOML_LIST = [3, 11, 12, 14, 15, 16, 18, 22, 23, 
