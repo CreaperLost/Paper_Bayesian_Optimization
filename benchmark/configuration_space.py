@@ -45,7 +45,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
             else:
                 raise RuntimeError
                 
-        print(f'Seed in Configuration Space Init: {self.seed}')
+        #print(f'Seed in Configuration Space Init: {self.seed}')
 
 
     def unraveling_hyper_parameter(self, dictionary_of_hp):
@@ -118,7 +118,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
         assert model_type in model_list 
         assert n_feat !=None
 
-        print(f'Rng in Mango  : {self.seed}')
+        #print(f'Rng in Mango  : {self.seed}')
 
         tmp_config = config.copy()
 
@@ -164,7 +164,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
             hp_type ,transformation, lower_bound, upper_bound = self.unraveling_hyper_parameter(hp_dict)
             list_of_hps.append( self.smac_specific_hp(i, hp_type, transformation, lower_bound, upper_bound) )
 
-        print(f'Seed per group configuration space {self.seed}')
+        #print(f'Seed per group configuration space {self.seed}')
         cs = CS.ConfigurationSpace(seed=self.seed)
         cs.add_hyperparameters(list_of_hps)
         return cs
@@ -321,7 +321,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
     def init_linear_svm(self, config : Union[CS.Configuration, Dict],n_feat = None, seed = None):
         pass_seed = self.seed
         if seed != None : pass_seed = seed
-        print(f'Rng in LinearSVM  : {self.seed} vs new_seed {seed}')
+        #print(f'Rng in LinearSVM  : {self.seed} vs new_seed {seed}')
         new_config = self.cast_config_space(config,LINEAR_SVM_NAME)
         new_config['C'] = new_config.pop('linear_C')
         model = SVC(**new_config,random_state=pass_seed,probability=True)
@@ -331,7 +331,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
     def init_rbf_svm(self, config : Union[CS.Configuration, Dict], n_feat =None, seed = None):
         pass_seed = self.seed
         if seed != None : pass_seed = seed
-        print(f'Rng in RFB SVM  : {self.seed} vs new_seed {seed}')
+        #print(f'Rng in RFB SVM  : {self.seed} vs new_seed {seed}')
         
         new_config = self.cast_config_space(config,RBF_SVM_NAME)
         new_config['C'] = new_config.pop('rbf_C')
@@ -344,13 +344,13 @@ class Classification_Configuration_Space(Classification_Benchmark):
     def init_rf(self,config : Union[CS.Configuration, Dict], n_feat = None, seed = None):
         pass_seed = self.seed
         if seed != None : pass_seed = seed
-        print(f'Rng in RF  : {self.seed} vs new_seed {seed}')
+        #print(f'Rng in RF  : {self.seed} vs new_seed {seed}')
 
         assert n_feat != None
         new_config = self.cast_config_space(config,RF_NAME)
         new_config["max_features"] = int(np.rint(np.power(n_feat, config["max_features"])))
         new_config['n_estimators'] = 500
-        print(new_config)
+        #print(new_config)
         model = RandomForestClassifier(**new_config, bootstrap=True,random_state=pass_seed,n_jobs=-1)
         return model
 
@@ -360,7 +360,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
         if seed != None : pass_seed = seed
 
         
-        print(f'Rng in XGboost  : {self.seed} vs new_seed {seed}')
+        #print(f'Rng in XGboost  : {self.seed} vs new_seed {seed}')
 
         extra_args = dict(
             booster="gbtree",
@@ -389,7 +389,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
         """
         pass_seed = self.seed
         if seed != None : pass_seed = seed
-        print(f'Rng in DT  : {self.seed} vs new_seed {seed}')
+        #print(f'Rng in DT  : {self.seed} vs new_seed {seed}')
 
         if isinstance(config, CS.Configuration):
             config = config.get_dictionary()
@@ -423,7 +423,7 @@ class Classification_Configuration_Space(Classification_Benchmark):
         if isinstance(config, CS.Configuration):
             config = config.get_dictionary()
 
-        print(f'Rng in Initialize Model  : {self.seed} vs new seed from param : {seed}')
+        #print(f'Rng in Initialize Model  : {self.seed} vs new seed from param : {seed}')
         
         tmp_config = config.copy()
 

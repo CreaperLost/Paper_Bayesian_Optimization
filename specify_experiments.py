@@ -8,16 +8,17 @@ RF_LOCAL = 'RF_Local'
 
 
 OPTIMIZERS = [
-    
-    RF_LOCAL,
     MANGO,
-    RANDOM_SEARCH,  
+  
+
+]
+"""
+      RF_LOCAL,
     HYPEROPT,
     SMAC,
     OPTUNA,
- 
-]
-
+    RANDOM_SEARCH,  
+"""
 
 """
  
@@ -44,8 +45,8 @@ HALF_CLASSIFICATION_AUTOML_LIST = [15, 23, 29, 43, 45, 2047,
 N_SEEDS = [1,2,3,4,5]
 
 
-N_INIT = 10
-N_MAXIMUM = 350
+N_INIT = 2
+N_MAXIMUM = 30
 
 
 ABLATION = 'ABLATION'

@@ -166,7 +166,16 @@ class Classification_Benchmark:
             model = self.mango_init_model(config = config, n_feat = X.shape[1] ,model_type= train_config['model_type'])
         
         model.fit(X,y)
-
+        
+        y_expected=model.predict_proba(X)
+        print(X.shape)
+        print(f'Train AUC : {roc_auc_score(y,y_expected,multi_class="ovr")} fold : {fold_number}')
+        """if roc_auc_score(y,y_expected[:,1]) < 0.5:
+            print(model.decision_function(X))
+            print('Very LOW',roc_auc_score(y,y_expected[:,1],multi_class="ovr"))
+            print(y_expected,y)
+            print(roc_auc_score(y,y_expected[:,0],multi_class="ovr"))
+            raise ValueError"""
         return model
 
     def train_model_on_all_data(self, train_config:dict) -> object:
@@ -202,7 +211,7 @@ class Classification_Benchmark:
         pass_seed = self.seed
         if seed != None : pass_seed = seed
 
-        print(f'Seed argument and final seed : {seed,pass_seed}')
+        #print(f'Seed argument and final seed : {seed,pass_seed}')
 
         train_config  = { 'config' : config, 'optimizer': 'typical', 'seed': pass_seed}
 
@@ -248,11 +257,25 @@ class Classification_Benchmark:
         for k, v in self.scorers.items():
             #Last model  is for the test set only!
             val_scores[k] = 0.0
+            score_l = []
             for model_fold in range(len(model_list)):
-                val_scores[k] += v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-                self.get_model_predictions_fold(model_list[model_fold],model_fold)
+                
+                score_on_fold = v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
+                score_l.append(score_on_fold)
+                val_scores[k] += score_on_fold
+                preds = self.get_model_predictions_fold(model_list[model_fold],model_fold)
+                tmp_score = roc_auc_score(self.valid_y[model_fold], preds[:,1])
+                print(f'Current Model Fold is {model_fold,abs(score_on_fold - tmp_score)}')
+                if abs(score_on_fold - tmp_score) > 0.001:
+                    print(f'Score on fold is {score_on_fold}')
+                    print(f'TMP Score on fold is {tmp_score}')
+                    raise ValueError
+            print(val_scores[k], (len(model_list)), val_scores[k] / (len(model_list)),np.mean(score_l))
+            
             val_scores[k] /= (len(model_list))
-            print(f'{k},{v},#Folds : {len(model_list)}')
+            if abs(val_scores[k]  - np.mean(score_l)) > 0.001:
+                print(f'HUGE : {val_scores[k] , np.mean(score_l)}')
+                raise ValueError
            
         return val_scores["auc"]
     
@@ -273,9 +296,11 @@ class Classification_Benchmark:
         try:
             Path(path).mkdir(parents=True, exist_ok=True)
         except FileExistsError:
-            print("Folder is already there")
+            pass
+            #print("Folder is already there")
         else:
-            print("Folder is created there")
+            pass
+            #print("Folder is created there")
 
     def get_model_predictions_fold(self, model:object, fold:int) -> None:
         prob_preds = model.predict_proba( self.valid_X[fold] ) 
@@ -292,15 +317,19 @@ class Classification_Benchmark:
 
         # save predictions per configuration
         path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
+        #prob_preds = np.around(prob_preds,4)
         pd.DataFrame(prob_preds).to_csv(path_per_config)
 
         
         # If label.csv exists then ignore, else write it.
         labels_file = os.path.join(labels_directory,'labels.csv')
         if not os.path.exists( labels_file ):
-            pd.DataFrame(self.test_y).to_csv(labels_file)
+            pd.DataFrame(self.valid_y[fold]).to_csv(labels_file)
         else:
-            print('Labels exist.')
+            pass
+            #print('Labels exist.')
+
+        return prob_preds
 
     def get_model_predictions_holdout(self, model:object) -> None:
         
@@ -318,10 +347,11 @@ class Classification_Benchmark:
         # IF holdout has not run yet. ( Only triggered the first time for CV. Useful for single-fold.)
         if not os.path.exists( path_per_config ):
             # Get the predictions from the model.
-            prob_preds = model.predict_proba( self.test_X ) 
+            prob_preds = model.predict_proba( self.test_X )
+            #prob_preds = np.around(prob_preds,4)
             pd.DataFrame(prob_preds).to_csv(path_per_config)
         else:
-            print('Labels exist.')
+            pass #print('Labels exist.')
 
         
         
@@ -334,7 +364,7 @@ class Classification_Benchmark:
         if not os.path.exists( labels_file ):
             pd.DataFrame(self.test_y).to_csv(labels_file)
         else:
-            print('Labels exist.')
+            pass #print('Labels exist.')
 
 
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
@@ -356,7 +386,7 @@ class Classification_Benchmark:
 
         self.iter += 1
 
-        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+        print(f'CV Score : {auc_score} , Holdout Score {test_auc_score}')
         
         return 1 - auc_score # Minimize the auc score loss.
 
@@ -438,7 +468,8 @@ class Classification_Benchmark:
             
         return model
 
-    #This applies on configuration per type of model.
+    #This applies on configuration per type of model. 
+    # MANGO IS MAXIMIZING. NOT MINIMIZING.
     def mango_objective_function(self,configuration: Union[CS.Configuration, Dict], model_type = None) -> int:
         """Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
@@ -450,15 +481,14 @@ class Classification_Benchmark:
         # Apply the models.
         auc_score = self.apply_model_to_cv(model_list)
 
-
         # Change
         test_auc_score = self.mango_function_test(configuration,model_type)
 
-        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+        print(f'CV Score : {auc_score} , Holdout Score {1-test_auc_score}')
 
         self.iter += 1
         
-        return 1 - auc_score
+        return auc_score
     
 
     # The idea is that we run only on TEST SET ON THIS ONE. (K-FOLD)
@@ -576,7 +606,7 @@ class Classification_Benchmark:
 
         self.iter += 1
         
-        return 1-auc_score
+        return 1 - auc_score
     
     def hyperopt_function_test(self, configuration: Union[CS.Configuration, Dict]) -> float:
         """Function that evaluates a 'config' on a 'fidelity' on the test set"""
