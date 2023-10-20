@@ -8,14 +8,17 @@ RF_LOCAL = 'RF_Local'
 
 
 OPTIMIZERS = [
+    RF_LOCAL,
     MANGO,
-]
-"""
-      RF_LOCAL,
     HYPEROPT,
     SMAC,
     OPTUNA,
-    RANDOM_SEARCH,  
+    RANDOM_SEARCH, 
+]
+"""
+    
+    
+    
 """
 
 """
@@ -94,7 +97,7 @@ ABLATION_CONFIG_LIST =[
 ]
 
 
-FULL_CLASSIFICATION_AUTOML_LIST = [3, 11, 12, 14, 15, 16, 18, 22, 23, 
+FULL_CLASSIFICATION_AUTOML_LIST = [ 11,   12, 3,  14, 15, 16, 18, 22, 23, 
                 28, 29, 31, 37, 43, 45, 49, 53, 2074, 
                 2079, 3021, 3022, 3481, 3549, 3560, 3902, 
                 3903, 3913, 3917, 3918, 9946, 9952, 9957, 
@@ -110,6 +113,8 @@ HALF_CLASSIFICATION_AUTOML_LIST = [15, 23, 29, 43, 45, 2047,
 
 N_SEEDS = [1,2,3,4,5]
 
+# used for plotting mainly.
+N_FOLDS = [0,1,2,3,4]
 
 N_INIT = 2
 N_MAXIMUM = 30

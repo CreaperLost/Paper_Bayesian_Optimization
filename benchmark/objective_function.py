@@ -6,6 +6,7 @@ import ConfigSpace as CS
 import numpy as np
 import pandas as pd
 from sklearn.metrics import make_scorer,roc_auc_score
+from sklearn.svm import SVC
 
 from typing import Union, Dict
 
@@ -89,7 +90,8 @@ class Classification_Benchmark:
         self.lower_bound_train_size = dm.lower_bound_train_size
         self.n_classes = dm.n_classes
 
-        self.inversion_need = False
+        self.inversion_need = [None,None,None,None,None]
+        self.inversion_need_holdout = None
 
         # Observation and fidelity spaces
         self.configuration_space, _ = self.get_configuration_space()
@@ -156,9 +158,12 @@ class Classification_Benchmark:
         Flip the predictions if auc <0.5 (for SVMs.)
         returns False, if flipping not needed, returns True if flipping is needed.
         """
+        """print('This is my label:')
+        print(y)
+        print(np.unique(y))"""
 
         # Multi-Class will be left as is for now.
-        if y.shape[1] > 2:
+        if len(np.unique(y)) > 2 :
             return False
             
         auc = roc_auc_score(y,prediction[:,1])
@@ -196,9 +201,11 @@ class Classification_Benchmark:
             model = self.mango_init_model(config = config, n_feat = X.shape[1] ,model_type= train_config['model_type'])
         
         model.fit(X,y)
-        
-        pred = model.predict_proba(X)
-        self.inversion = self.check_inversion_trick(pred,y)
+
+        # High probability that the result will be flipped.
+        if isinstance(model,SVC):
+            pred = model.predict_proba(X)
+            self.inversion_need[fold_number] = self.check_inversion_trick(pred,y)
 
         return model
 
@@ -222,6 +229,11 @@ class Classification_Benchmark:
             model = self.mango_init_model(config, n_feat = X.shape[1],model_type= train_config['model_type'])
         
         model.fit(X[train_idx],y.iloc[train_idx])
+
+        # High probability that the result will be flipped.
+        if isinstance(model,SVC):
+            pred = model.predict_proba(X[train_idx])
+            self.inversion_need_holdout = self.check_inversion_trick(pred,y.iloc[train_idx])
         
         return model
 
@@ -285,6 +297,9 @@ class Classification_Benchmark:
             for model_fold in range(len(model_list)):
                 
                 score_on_fold = v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
+                if self.inversion_need[model_fold] == True and score_on_fold <0.5 and isinstance(model_list[model_fold],SVC):
+                    print(f'Found below average AUC {score_on_fold}, flipping {type(model_list[model_fold])}')
+                    score_on_fold = 1 - score_on_fold
                 val_scores[k] += score_on_fold
                 self.get_model_predictions_fold(model_list[model_fold],model_fold)
 
@@ -303,6 +318,10 @@ class Classification_Benchmark:
         test_scores = dict()
         for k, v in self.scorers.items():
             test_scores[k] = v(model, self.test_X, self.test_y)
+            
+            if self.inversion_need_holdout == True:
+                print(f'Found below average AUC HOLDOUT!!!! {test_scores[k]}, flipping {type(model)}')
+                test_scores[k] = 1 - test_scores[k]
         self.get_model_predictions_holdout(model)
         return test_scores["auc"]
     
@@ -332,12 +351,12 @@ class Classification_Benchmark:
         path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
         #prob_preds = np.around(prob_preds,4)
 
-        if self.inversion == True:
-            print('Need to invert!')
-            print(f'Before : {prob_preds}')
+        if self.inversion_need[fold] == True:
             prob_preds = prob_preds[:,[1,0]]
-            print(f'After :{prob_preds}')
         pd.DataFrame(prob_preds).to_csv(path_per_config)
+
+        # RESET Inversion.
+        self.inversion_need[fold] = False
 
         # If label.csv exists then ignore, else write it.
         labels_file = os.path.join(labels_directory,'labels.csv')
@@ -363,11 +382,16 @@ class Classification_Benchmark:
         if not os.path.exists( path_per_config ):
             # Get the predictions from the model.
             prob_preds = model.predict_proba( self.test_X )
+            if self.inversion_need_holdout == True:
+                prob_preds = prob_preds[:,[1,0]]
             #prob_preds = np.around(prob_preds,4)
             pd.DataFrame(prob_preds).to_csv(path_per_config)
+            
         else:
             pass #print('Labels exist.')
-
+        
+        # RESET Inversion.
+        self.inversion_need_holdout = False
         
         # Set the labels directory
         labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout','labels')
@@ -399,7 +423,7 @@ class Classification_Benchmark:
 
         self.iter += 1
 
-        print(f'CV Score : {auc_score} , Holdout Score {test_auc_score}')
+        print(f'CV Score : {auc_score} , Holdout Score {1-test_auc_score}')
         
         return 1 - auc_score # Minimize the auc score loss.
 
@@ -470,7 +494,7 @@ class Classification_Benchmark:
 
         train_config  = { 'config' : config, 'optimizer': 'mango', 'model_type': model_type}
         
-        model =  self.call_evaluation_process(self, evaluation, train_config) 
+        model =  self.call_evaluation_process(evaluation, train_config) 
             
         return model
 

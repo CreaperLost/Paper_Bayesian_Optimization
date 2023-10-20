@@ -11,10 +11,10 @@ The bootstrap BBC values, an array of length = iterations. You can derive a poin
 """
 from sklearn.metrics import roc_auc_score,r2_score
 import numpy as np
-
+import pandas as pd
 
 # BBC calculation function
-def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=1000):
+def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=1000,multi_class = False):
     
     bbc_distribution = []
 
@@ -36,9 +36,17 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
         
             in_bag_performances = [] # List to store the configuration performances on the in_bag_indeces samples
             for j in range(C):
-                in_bag_performances.append(metric(labels[in_bag_indices], oos_matrix[in_bag_indices, j]))
+                if multi_class == True:
+                    new_df =np.array([np.array(xi) for xi in oos_matrix[in_bag_indices,j]])
+                    in_bag_performances.append(metric(labels[in_bag_indices], new_df, multi_class='ovr'))
+                else:
+                    in_bag_performances.append(metric(labels[in_bag_indices], oos_matrix[in_bag_indices, j]))
             winner_configuration = np.argmax(in_bag_performances) # Best configuration on the in_bag_indices data
-            out_of_bag_performances.append(metric(labels[out_of_bag_indices],oos_matrix[out_of_bag_indices, winner_configuration])) # Performance of best configuration on the out_of_bag_indices data
+            if multi_class == True:
+                new_df =np.array([np.array(xi) for xi in oos_matrix[out_of_bag_indices, winner_configuration]])
+                out_of_bag_performances.append(metric(labels[out_of_bag_indices],new_df,multi_class='ovr'))
+            else:
+                out_of_bag_performances.append(metric(labels[out_of_bag_indices],oos_matrix[out_of_bag_indices, winner_configuration])) # Performance of best configuration on the out_of_bag_indices data
         bbc_distribution = out_of_bag_performances
     elif bbc_type == 'averaged': # This is a different version that takes into account the fold memberships of the samples and calculated the configuration performances by fold for the in_bag and out_of_bag
         fold_ids = np.unique(folds)
