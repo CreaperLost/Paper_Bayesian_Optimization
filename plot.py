@@ -11,9 +11,26 @@ from global_utilities.bbc_cv import bbc
 
 plot_for = ABLATION
 
-
 main_path = os.path.join(os.getcwd(), plot_for)
 
+
+datasets = ['3']
+configs = list(np.arange(0,N_MAXIMUM))
+
+def get_probs_per_configuration(path_to_config_files):
+    # Keep scores for the dataset 
+    prob_df = pd.DataFrame()
+
+    # iterate over all configuration files.
+    for configuration_probs in os.listdir(path_to_config_files):
+        # Get the configuration x.
+        file_name = os.path.join(path_to_config_files,configuration_probs)
+        # For binary-Classification.
+        new_pd = pd.read_csv(file_name,index_col=0,float_precision='round_trip')['1']
+        new_pd.rename(configuration_probs.split('.')[0],inplace=True)
+        prob_df = pd.concat((prob_df,new_pd),axis=1)
+    
+    return prob_df
 
 
 def get_holdout_probs_per_dataset_per_seed_for_optimizer(dataset_id: int, seed: int, optimizer: str) -> pd.DataFrame:
@@ -23,23 +40,35 @@ def get_holdout_probs_per_dataset_per_seed_for_optimizer(dataset_id: int, seed: 
     """
     path_of_configuration_files = os.path.join(main_path,dataset_id,seed,'Holdout',optimizer)
     
-    # Keep scores for the dataset 
-    prob_df = pd.DataFrame()
+    prob_df = get_probs_per_configuration(path_of_configuration_files)
 
-    # iterate over all configuration files.
-    for configuration_probs in os.listdir(path_of_configuration_files):
-        # Get the configuration x.
-        file_name = os.path.join(path_of_configuration_files,configuration_probs)
-        # For binary-Classification.
-        new_pd = pd.read_csv(file_name,index_col=0,float_precision='round_trip')['1']
-        new_pd.rename(configuration_probs.split('.')[0],inplace=True)
-        prob_df = pd.concat((prob_df,new_pd),axis=1)
-
+    # Take the name of the columns
     col_names = list(prob_df.columns)
+    # Get only integers.
     col_names = [int(str(x).split('C')[1]) for x in col_names]
-    col_names.sort()
-    col_names = ['C'+str(x) for x in col_names]
-    prob_df = prob_df.reindex(col_names, axis=1)
+    
+    # Use integers instead of C+int for column names.
+    prob_df.columns = col_names
+
+    print('Before')
+    print(prob_df)
+
+    # sort in ascending order the configurations
+    prob_df.sort_index(axis=1,inplace=True)
+    
+    # rename the columns as before.
+    prob_df.columns = ['C'+str(x) for x in list(prob_df.columns)]
+
+    print('After')
+    print(prob_df)
+
+    exit()
+
+    
+
+    """col_names.sort()
+    
+    prob_df = prob_df.reindex(col_names, axis=1)"""
 
     return prob_df
 
