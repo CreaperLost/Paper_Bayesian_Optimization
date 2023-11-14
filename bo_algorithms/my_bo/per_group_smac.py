@@ -27,7 +27,7 @@ from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Local_Maximizer import Sob
 
 # Surrogate model
 from bo_algorithms.my_bo.surrogate.RandomForest import Simple_RF
-
+from bo_algorithms.my_bo.surrogate.GaussianProcess_surrogate import GaussianProcess
 
 
 class Per_Group_Bayesian_Optimization:
@@ -66,7 +66,8 @@ class Per_Group_Bayesian_Optimization:
         random_seed = int(1e6),
         acq_funct = 'EI',
         model = 'RF',
-        maximizer  = 'Sobol',group_name = '',extensive=None,STD_OUT=None,stdev = None
+        maximizer  = 'Sobol',group_name = '',
+        local_search=None,grid_values = None,box_cox_enabled=None
     ):
 
         # Very basic input checks
@@ -163,18 +164,18 @@ class Per_Group_Bayesian_Optimization:
         self.group_name = group_name
 
         # How many candidates per time. (How many Configurations to get out of Sobol Sequence)
-        if extensive == None:
-            self.n_cand = 900
-            local_points = 100
-        elif extensive == 'Hyper':
-            self.n_cand = 5000
-            local_points = 500
-        else:
-            raise RuntimeError
-                
-
-
-        self.model = Simple_RF(self.config_space,rng=random_seed,n_estimators=100,STD_OUT=STD_OUT)
+        self.n_cand = grid_values
+        
+        print(f'Init {self.n_init} Max Iter: {self.max_evals}')
+        print(f'Output Transformation {box_cox_enabled}')
+        print(f'Grid Values {grid_values}')
+        if model =='RF':
+            print('Mode is RF')
+            
+            self.model = Simple_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
+        elif model =='GP':
+            print('Mode is GP')
+            self.model = GaussianProcess(self.config_space,seed=random_seed,box_cox_enabled=box_cox_enabled )
         
         self.batch_size = 1
 
@@ -182,9 +183,12 @@ class Per_Group_Bayesian_Optimization:
             self.acquisition_function = EI(self.model)
             
             if maximizer == 'Sobol':
-                self.maximize_func = SobolMaximizer(self.acquisition_function, self.config_space, self.n_cand)
-            elif maximizer == 'Sobol_Local':
-                self.maximize_func  = Sobol_Local_Maximizer(self.acquisition_function, self.config_space, self.n_cand,local_points=local_points,stdev=stdev)
+                if local_search == False:
+                    print('Sobol No local Search')
+                    self.maximize_func = SobolMaximizer(self.acquisition_function, self.config_space, self.n_cand)
+                else:
+                    print('Sobol local Search')
+                    self.maximize_func  = Sobol_Local_Maximizer(self.acquisition_function, self.config_space, self.n_cand)
             else:
                 raise RuntimeError
             

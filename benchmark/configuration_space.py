@@ -10,6 +10,8 @@ from sklearn.tree import DecisionTreeClassifier
 from scipy.stats import uniform,loguniform
 from hyperopt import hp
 from benchmark.hyper_parameters import *
+from sklearn.calibration import CalibratedClassifierCV
+
 
 # this needs to change.
     # Group_MultiFold_MLBenchmark
@@ -324,7 +326,8 @@ class Classification_Configuration_Space(Classification_Benchmark):
         #print(f'Rng in LinearSVM  : {self.seed} vs new_seed {seed}')
         new_config = self.cast_config_space(config,LINEAR_SVM_NAME)
         new_config['C'] = new_config.pop('linear_C')
-        model = SVC(**new_config,random_state=pass_seed,probability=True)
+        model = SVC(**new_config,random_state=pass_seed,decision_function_shape="ovr",probability=True) #probability=True
+        model = CalibratedClassifierCV(model)
         return model 
 
 
@@ -337,7 +340,8 @@ class Classification_Configuration_Space(Classification_Benchmark):
         new_config['C'] = new_config.pop('rbf_C')
         new_config['gamma'] = new_config.pop('rbf_gamma')
 
-        model = SVC(**new_config,random_state=pass_seed,probability=True)
+        model = SVC(**new_config,random_state=pass_seed,decision_function_shape="ovr",probability=True) #,probability=True
+        model = CalibratedClassifierCV(model)
         return model
     
 

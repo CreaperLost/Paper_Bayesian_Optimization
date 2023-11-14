@@ -5,3 +5,6 @@ classification_experiments/
 *.pyc
 Holdout_Datasets/
 ABLATION/
+ablation_run/
+ablation_scores/
+figures/

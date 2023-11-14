@@ -29,7 +29,6 @@ class Holdout_OpenMLDataManager(DataManager):
         self.task_id = task_id
         assert seed != None
         self.seed = seed
-        print(f'Data Manager Seed {seed}')
 
         # Using this split we can split all of the data.
         self.ncv_seed = 50
@@ -44,10 +43,14 @@ class Holdout_OpenMLDataManager(DataManager):
         self.test_idx = None
         self.task = None
         self.dataset = None
-        self.preprocessor = None
+        self.preprocessor_list = [None] * n_folds
         self.lower_bound_train_size = None
         self.n_classes = None
         self.n_folds = n_folds
+        self.categorical_index = None
+
+
+        print(f'Manager is called ,seed : {self.seed}')
 
         self.data_path = 'Holdout_Datasets/OpenML'
      
@@ -100,18 +103,21 @@ class Holdout_OpenMLDataManager(DataManager):
 
         #For test.
         path_str2 = "Seed_{}_{}_{}.parquet.gzip"
+
+
+        
         try:
+            self.categorical_index = np.array(np.loadtxt(data_path + 'categorical_index'),dtype=bool)
             for fold in range(self.n_folds) :
                 self.train_X.append( pd.read_parquet(data_path + path_str.format(self.seed,"train", "x",str(fold))).to_numpy())
                 self.train_y.append( pd.read_parquet(data_path + path_str.format(self.seed,"train", "y",str(fold))).squeeze(axis=1))
                 self.valid_X.append( pd.read_parquet(data_path + path_str.format(self.seed,"valid", "x",str(fold))).to_numpy())
                 self.valid_y.append( pd.read_parquet(data_path + path_str.format(self.seed,"valid", "y",str(fold))).squeeze(axis=1))
             
-            
             self.test_X = pd.read_parquet(data_path + path_str2.format(self.seed,"test", "x")).to_numpy()
             self.test_y = pd.read_parquet(data_path + path_str2.format(self.seed,"test", "y")).squeeze(axis=1)
         except FileNotFoundError:
-            print('File not found')
+            #print('File not found')
             return False
         return True
 
@@ -125,10 +131,6 @@ class Holdout_OpenMLDataManager(DataManager):
         labelencoder = LabelEncoder()
         y = pd.Series(labelencoder.fit_transform(y))
         assert Path(self.dataset.data_file).exists(), f'The datafile {self.dataset.data_file} does not exists.'
-
-        categorical_ind = np.array(categorical_ind)
-        (cat_idx,) = np.where(categorical_ind)
-        (cont_idx,) = np.where(~categorical_ind)
 
 
         # Stratified split of out_fold. Splits == ncv_seed.
@@ -175,52 +177,6 @@ class Holdout_OpenMLDataManager(DataManager):
 
 
 
-        # preprocessor to handle missing values, categorical columns encodings,
-        # and scaling numeric columns
-
-        #
-        self.preprocessor = make_pipeline(
-            ColumnTransformer([
-                (
-                    "cat",
-                    make_pipeline(SimpleImputer(strategy="most_frequent"),
-                    OneHotEncoder(sparse=False, handle_unknown="ignore")
-                    ),
-                    cat_idx.tolist(),
-                ),
-                (
-                    "cont",
-                    make_pipeline(SimpleImputer(strategy="median"),
-                                  StandardScaler()),
-                    cont_idx.tolist(),
-                )
-            ])
-        )
-        
-        #Get back the training dataset, by combining the  training-validation.
-        #Learn the preprocess and apply it to the test set. (FIT THE PROCEDURE TO WHOLE DATA)
-        
-        #Keep a training set before transformations
-        for curr_seed in range(len(N_SEEDS)):
-            
-            # Start by transforming each of the X features of the test sets, using both train and validation data.
-            train_and_validation_X  = np.vstack((X_train_per_seed[curr_seed][0],X_valid_per_seed[curr_seed][0]))
-            self.preprocessor.fit(train_and_validation_X)
-            
-            print(f'Previous shape of X_test index: {curr_seed} , shape: {X_test_per_seed[curr_seed].shape}')
-            X_test_per_seed[curr_seed] = self.preprocessor.transform(X_test_per_seed[curr_seed])
-            print(f'New shape of X_test index: {curr_seed} , shape: {X_test_per_seed[curr_seed].shape}')
-
-            y_test_per_seed[curr_seed] = self._convert_labels(y_test_per_seed[curr_seed])
-
-            for curr_fold in range(self.n_folds):
-                X_train_per_seed[curr_seed][curr_fold] = self.preprocessor.fit_transform(X_train_per_seed[curr_seed][curr_fold])
-                print(f'X_train index: {curr_seed} , shape: {X_train_per_seed[curr_seed][curr_fold].shape}')
-                X_valid_per_seed[curr_seed][curr_fold] = self.preprocessor.transform(X_valid_per_seed[curr_seed][curr_fold])    
-                print(f'X_valid index: {curr_seed} , shape: {X_valid_per_seed[curr_seed][curr_fold].shape}')
-                y_train_per_seed[curr_seed][curr_fold] = self._convert_labels(y_train_per_seed[curr_seed][curr_fold])
-                y_valid_per_seed[curr_seed][curr_fold] = self._convert_labels(y_valid_per_seed[curr_seed][curr_fold])
-
         # Path for CV
         path_str = "Seed_{}_{}_{}_{}.parquet.gzip"
 
@@ -230,23 +186,30 @@ class Holdout_OpenMLDataManager(DataManager):
 
         label_name = str(self.task.target_name)
 
+        categorical_ind = np.array(categorical_ind)
+        self.categorical_index = categorical_ind
+
+        np.savetxt(data_path + 'categorical_index',X=categorical_ind)
+
         #Store the needed information.
-        #Each seed file
-        #Each fold file.
-        # Split as training, validation and test.
+        #Each seed file , Each fold file, Split as training, validation and test.
         for seed_idx,seed in enumerate(N_SEEDS):
+
+            pd.DataFrame(X_test_per_seed[seed_idx]).to_parquet(data_path + path_str2.format(str(seed),"test", "x"))
             
-            colnames = np.arange(X_test_per_seed[seed_idx].shape[1]).astype(str)
-            pd.DataFrame(X_test_per_seed[seed_idx], columns=colnames).to_parquet(data_path + path_str2.format(str(seed),"test", "x"))
+            y_test_per_seed[seed_idx] = self._convert_labels(y_test_per_seed[seed_idx])
             y_test_per_seed[seed_idx].to_frame(label_name).to_parquet(data_path + path_str2.format(str(seed),"test", "y"))
 
             for curr_fold in range(self.n_folds):
-                print(seed_idx,seed,curr_fold)
-                colnames = np.arange(X_train_per_seed[seed_idx][curr_fold].shape[1]).astype(str)
-                print(f'Length : {len(colnames), X_valid_per_seed[seed_idx][curr_fold].shape}')
-                pd.DataFrame(X_train_per_seed[seed_idx][curr_fold], columns=colnames).to_parquet(data_path + path_str.format(str(seed),"train", "x",str(curr_fold)))
+
+                pd.DataFrame(X_train_per_seed[seed_idx][curr_fold]).to_parquet(data_path + path_str.format(str(seed),"train", "x",str(curr_fold)))
+                
+                y_train_per_seed[seed_idx][curr_fold] = self._convert_labels(y_train_per_seed[seed_idx][curr_fold])
                 y_train_per_seed[seed_idx][curr_fold].to_frame(label_name).to_parquet(data_path + path_str.format(str(seed),"train", "y",str(curr_fold)))
-                pd.DataFrame(X_valid_per_seed[seed_idx][curr_fold], columns=colnames).to_parquet(data_path + path_str.format(str(seed),"valid", "x",str(curr_fold)))
+                
+                
+                pd.DataFrame(X_valid_per_seed[seed_idx][curr_fold]).to_parquet(data_path + path_str.format(str(seed),"valid", "x",str(curr_fold)))
+                y_valid_per_seed[seed_idx][curr_fold] = self._convert_labels(y_valid_per_seed[seed_idx][curr_fold])
                 y_valid_per_seed[seed_idx][curr_fold].to_frame(label_name).to_parquet(data_path + path_str.format(str(seed),"valid", "y",str(curr_fold)))
 
 

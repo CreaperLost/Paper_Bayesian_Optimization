@@ -53,7 +53,11 @@ class RF_Local:
         random_seed = int(1e6),
         acq_funct = 'EI',
         model = 'RF',
-        maximizer  = 'Sobol',extensive = None, std_out = None,stdev=None,
+        maximizer  = 'Sobol',
+        local_search=None,
+        grid_values = None, 
+        box_cox_enabled = None,
+        
     ): 
 
         # Very basic input checks
@@ -128,8 +132,9 @@ class RF_Local:
                                                                                     configuration_space=classifier_specific_config_space,\
                                                                                     initial_design=initial_design,n_init=n_init,max_evals=max_evals,
                                                                                     batch_size=batch_size,random_seed=random_seed,\
-                                                                                      acq_funct=acq_funct,model=model,maximizer=maximizer,group_name =classifier_name,\
-                                                                                      extensive=extensive,STD_OUT = std_out,stdev=stdev)
+                                                                                      acq_funct=acq_funct,model=model,maximizer=maximizer,
+                                                                                      group_name =classifier_name,\
+                                                                                      local_search=local_search,grid_values = grid_values,box_cox_enabled=box_cox_enabled)
     
     # Just call each class and run the initial configurations of each.
     def run_initial_configurations(self):

@@ -23,7 +23,7 @@ import numpy as np
 from bo_algorithms.my_bo.surrogate.base_surrogate_model import BaseModel
 
 class  Simple_RF(BaseModel):
-    def __init__(self, config_space, rng=None,n_estimators= 100,STD_OUT=None):
+    def __init__(self, config_space, rng=None,n_estimators= 100,box_cox_enabled = None):
         
         self.config_space = config_space
 
@@ -36,7 +36,7 @@ class  Simple_RF(BaseModel):
 
         self.n_estimators =  n_estimators
         self.rf = RandomForestRegressor(n_estimators = 100,random_state=rng,n_jobs=-1)
-        self.standardize_output = STD_OUT
+        self.standardize_output = box_cox_enabled
         super(Simple_RF, self).__init__()
 
 
@@ -47,7 +47,7 @@ class  Simple_RF(BaseModel):
 
         #Not needed for non conditional space.
         #X = self._impute_inactive(X)
-        if self.standardize_output == None:
+        if self.standardize_output == True:
             tmp_y = y.copy()
 
             try:
@@ -99,7 +99,7 @@ class  Simple_RF(BaseModel):
         var = np.var(np.concatenate(preds, axis=1), axis=1)
 
 
-        if self.standardize_output == None:
+        if self.standardize_output == True:
             mean, var = self._untransform_y(mean, var)
         
         return mean.reshape([-1,1]), var.reshape([-1,1]) 

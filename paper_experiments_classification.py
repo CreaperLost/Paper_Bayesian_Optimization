@@ -169,7 +169,7 @@ if __name__ == '__main__':
         'n_init' : N_INIT,
         'max_evals' : N_MAXIMUM,
         'n_datasets' : 1000,
-        'data_ids' :  FULL_CLASSIFICATION_AUTOML_LIST,
+        'data_ids' :  FULL_CLASSIFICATION_AUTOML_LIST, #FULL_CLASSIFICATION_AUTOML_LIST,
         'n_seeds' : N_SEEDS, 
         'type_of_bench': 'classification_experiments',
         'bench_name' :'GROUP',

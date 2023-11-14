@@ -31,6 +31,7 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
     out_of_bag_performances = [] # list to store the bootstrap values for each iteration
     if bbc_type == 'pooled':
         for i in range(iterations):
+            print(f'iter {i}')
             in_bag_indices = sorted(np.random.choice(N, N, replace=True)) # Bootstrap sampling with replacement
             out_of_bag_indices = list(set(list(range(N))) - set(in_bag_indices)) # Remaining samples that will be used to calculate the performance of the winner configuration
         
@@ -51,6 +52,7 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
     elif bbc_type == 'averaged': # This is a different version that takes into account the fold memberships of the samples and calculated the configuration performances by fold for the in_bag and out_of_bag
         fold_ids = np.unique(folds)
         for i in range(iterations):
+            print(f'iter {i}')
             in_bag_indices = sorted(np.random.choice(N, N, replace=True))
             out_of_bag_indices = list(set(list(range(N))) - set(in_bag_indices))
             in_bag_performances = []

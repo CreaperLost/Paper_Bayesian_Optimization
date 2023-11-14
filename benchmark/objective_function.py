@@ -5,7 +5,7 @@ from typing import Union, Dict
 import ConfigSpace as CS
 import numpy as np
 import pandas as pd
-from sklearn.metrics import make_scorer,roc_auc_score
+from sklearn.metrics import make_scorer,roc_auc_score,accuracy_score
 from sklearn.svm import SVC
 
 from typing import Union, Dict
@@ -22,7 +22,12 @@ import copy
 from benchmark.hyper_parameters import *
 import os 
 from pathlib import Path
-
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import make_pipeline
+from sklearn.utils import check_random_state
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import StandardScaler
     
     
 metrics = dict(
@@ -86,12 +91,14 @@ class Classification_Benchmark:
         self.test_idx = dm.test_idx
         self.task = dm.task
         self.dataset = dm.dataset
-        self.preprocessor = dm.preprocessor
+        self.preprocessor_list = dm.preprocessor_list
+        self.preprocessor_test = None
         self.lower_bound_train_size = dm.lower_bound_train_size
         self.n_classes = dm.n_classes
 
-        self.inversion_need = [None,None,None,None,None]
-        self.inversion_need_holdout = None
+        self.cat_index = dm.categorical_index
+
+
 
         # Observation and fidelity spaces
         self.configuration_space, _ = self.get_configuration_space()
@@ -151,26 +158,37 @@ class Classification_Benchmark:
         """ Provides interface to use, e.g., SciPy optimizers """
         return self.objective_function(configuration, **kwargs)['function_value']
 
-
-    def check_inversion_trick(self, prediction, y):
+    
+    def preprocess_creation(self):
         """
-        Responsible to save us from problematic SVM class.
-        Flip the predictions if auc <0.5 (for SVMs.)
-        returns False, if flipping not needed, returns True if flipping is needed.
+        Creates a preprocessor pipeline.
+        Parameter : categorical index, which indexes (features) are categorical.
         """
-        """print('This is my label:')
-        print(y)
-        print(np.unique(y))"""
 
-        # Multi-Class will be left as is for now.
-        if len(np.unique(y)) > 2 :
-            return False
-            
-        auc = roc_auc_score(y,prediction[:,1])
-        if auc < 0.5:
-            return True
-        
-        return False
+
+        (cat_idx,) = np.where(self.cat_index)
+        (cont_idx,) = np.where(~self.cat_index)
+
+
+        return make_pipeline(
+            ColumnTransformer([
+                (
+                    "cat",
+                    make_pipeline(SimpleImputer(strategy="most_frequent"),
+                    OneHotEncoder(sparse=False, handle_unknown="ignore")
+                    ),
+                    cat_idx.tolist(),
+                ),
+                (
+                    "cont",
+                    make_pipeline(SimpleImputer(strategy="median"),
+                                  StandardScaler()),
+                    cont_idx.tolist(),
+                )
+            ])
+        )
+         
+
     
     def call_evaluation_process(self, evaluation: str, config: dict) -> Union[list,object]:
         if evaluation == "val":
@@ -191,9 +209,22 @@ class Classification_Benchmark:
         config = train_config['config']
 
         seed = train_config.get('seed',self.seed)
-        
+
+
         X = self.train_X[fold_number]
-        y = self.train_y[fold_number]
+        y = self.train_y[fold_number]   
+
+
+        """
+        Fit and apply transformation of input variables.
+        """
+        if self.preprocessor_list[fold_number] == None:
+            processor = self.preprocess_creation()
+            processor.fit(X)
+            self.preprocessor_list[fold_number] = processor
+        
+        X  = self.preprocessor_list[fold_number].transform(X)
+
 
         if train_config['optimizer'] == 'typical':
             model = self.init_model(config=config, n_feat= X.shape[1], seed = seed )
@@ -201,11 +232,6 @@ class Classification_Benchmark:
             model = self.mango_init_model(config = config, n_feat = X.shape[1] ,model_type= train_config['model_type'])
         
         model.fit(X,y)
-
-        # High probability that the result will be flipped.
-        if isinstance(model,SVC):
-            pred = model.predict_proba(X)
-            self.inversion_need[fold_number] = self.check_inversion_trick(pred,y)
 
         return model
 
@@ -220,6 +246,16 @@ class Classification_Benchmark:
 
         X = np.vstack((self.train_X[0], self.valid_X[0]))
         y = pd.concat((self.train_y[0], self.valid_y[0]))
+
+
+        """
+        Fit and apply transformation of input variables.
+        """
+        if self.preprocessor_test == None:
+            self.preprocessor_test = self.preprocess_creation()
+            self.preprocessor_test.fit(X)
+
+        X  = self.preprocessor_test.transform(X)
         
         train_idx = np.arange(len(X))
 
@@ -230,11 +266,6 @@ class Classification_Benchmark:
         
         model.fit(X[train_idx],y.iloc[train_idx])
 
-        # High probability that the result will be flipped.
-        if isinstance(model,SVC):
-            pred = model.predict_proba(X[train_idx])
-            self.inversion_need_holdout = self.check_inversion_trick(pred,y.iloc[train_idx])
-        
         return model
 
 
@@ -275,14 +306,54 @@ class Classification_Benchmark:
             
         return model
     
+    def find_unique_in_order(self, arr):
+        seen = set()
+        unique_values = []
+        
+        for item in arr:
+            if item not in seen:
+                seen.add(item)
+                unique_values.append(item)
+        
+        return unique_values
+    
+
     def apply_model_to_valid_fold(self, model: object, fold:int) -> float: 
-        #Get the Validation Score - of 1 fold.
-        val_scores = dict()
-        for k, v in self.scorers.items():
-            #Get the score of a model on the specific set. (1-fold only run.)
-            val_scores[k] = v(model, self.valid_X[fold], self.valid_y[fold])
-        self.get_model_predictions_fold(model,fold)
-        return val_scores["auc"]
+
+        X = self.preprocessor_list[fold].transform(self.valid_X[fold])
+        y = self.valid_y[fold]
+
+        unique_class, class_index = np.unique(y,return_inverse=True)
+        
+        #prob_preds = model.predict(X)
+        #score = roc_auc_score(y,prob_preds,multi_class='ovr')
+
+
+        if isinstance(model, SVC) and len(unique_class) < 3:
+            # Get the predictions from the model.
+            #prob_preds = model.decision_function( X )  
+            prob_preds = model.predict_proba (X)
+        else:
+            prob_preds = model.predict_proba (X)
+
+        if len(unique_class) < 3:
+            if isinstance(model,SVC):
+                
+                score = roc_auc_score(y,prob_preds[:,1],multi_class='ovr')
+            else:
+                score = roc_auc_score(y,prob_preds[:,1],multi_class='ovr')
+        else:
+            score = roc_auc_score(y,prob_preds,multi_class='ovr')
+
+        if score < 0.5:
+            print(f' Validation AUC below 0.5 : {model,score}')
+
+
+        self.save_model_preds(prob_preds, fold)
+
+        self.save_labels(fold)
+
+        return score
 
     def apply_model_to_cv(self, model_list: list) -> float:
         """
@@ -290,40 +361,53 @@ class Classification_Benchmark:
         Get the AUC score.
         And return the average score.
         """
-        val_scores = dict()
-        for k, v in self.scorers.items():
-            #Last model  is for the test set only!
-            val_scores[k] = 0.0
-            for model_fold in range(len(model_list)):
-                
-                score_on_fold = v(model_list[model_fold], self.valid_X[model_fold], self.valid_y[model_fold])
-                if self.inversion_need[model_fold] == True and score_on_fold <0.5 and isinstance(model_list[model_fold],SVC):
-                    print(f'Found below average AUC {score_on_fold}, flipping {type(model_list[model_fold])}')
-                    score_on_fold = 1 - score_on_fold
-                val_scores[k] += score_on_fold
-                self.get_model_predictions_fold(model_list[model_fold],model_fold)
-
-            val_scores[k] /= (len(model_list))
-         
-           
-        return val_scores["auc"]
+        val_scores = []
+        
+        for model_fold in range(len(model_list)):
+            score_on_fold = self.apply_model_to_valid_fold(model_list[model_fold], model_fold)  
+            val_scores.append(score_on_fold)
+            
+        #print(f'Cross Validation scores: {val_scores}')
+        m_val = np.mean(val_scores)
+        return m_val
     
     def apply_model_to_holdout(self, model:object) -> int:
         """
         Apply, a trained model on the whole train-validation dataset, on the hold-out test set.
         return the score.
         """
+        X = self.preprocessor_test.transform(self.test_X)
+        y = self.test_y
 
-        #If evaluation == Test then you get a single model from the train_objective :D
-        test_scores = dict()
-        for k, v in self.scorers.items():
-            test_scores[k] = v(model, self.test_X, self.test_y)
-            
-            if self.inversion_need_holdout == True:
-                print(f'Found below average AUC HOLDOUT!!!! {test_scores[k]}, flipping {type(model)}')
-                test_scores[k] = 1 - test_scores[k]
-        self.get_model_predictions_holdout(model)
-        return test_scores["auc"]
+        unique_class, class_index = np.unique(y,return_inverse=True)
+
+        #prob_preds = model.predict(X)
+        #score = roc_auc_score(y,prob_preds,multi_class='ovr')
+
+        if isinstance(model, SVC) and len(unique_class) < 3:
+            # Get the predictions from the model.
+            #prob_preds = model.decision_function( X )
+            prob_preds = model.predict_proba(X)
+        else:
+            prob_preds = model.predict_proba(X)
+
+
+        if len(unique_class) < 3 :
+            if isinstance(model,SVC):
+                score = roc_auc_score(y,prob_preds[:,1],multi_class='ovr')
+            else:
+                score = roc_auc_score(y,prob_preds[:,1],multi_class='ovr')
+        else:
+            score = roc_auc_score(y,prob_preds,multi_class='ovr')
+
+        if score < 0.5:
+            print(f' HOldout AUC below 0.5 : {model,score}')
+
+        self.save_model_preds_holdout(prob_preds)
+
+        self.save_hold_out_labels()
+
+        return score
     
     def make_path(self, path):
         try:
@@ -335,28 +419,12 @@ class Classification_Benchmark:
             pass
             #print("Folder is created there")
 
-    def get_model_predictions_fold(self, model:object, fold:int) -> None:
-        prob_preds = model.predict_proba( self.valid_X[fold] ) 
-
-        # Store predictions
-        preds_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'CV',str(fold),self.optimizer)
+    def save_labels(self, fold):
         # Store labels in the directory.
         labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'CV',str(fold),'labels')
 
-        # Create directories
-        self.make_path(preds_directory)
         self.make_path(labels_directory)
 
-        # save predictions per configuration
-        path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
-        #prob_preds = np.around(prob_preds,4)
-
-        if self.inversion_need[fold] == True:
-            prob_preds = prob_preds[:,[1,0]]
-        pd.DataFrame(prob_preds).to_csv(path_per_config)
-
-        # RESET Inversion.
-        self.inversion_need[fold] = False
 
         # If label.csv exists then ignore, else write it.
         labels_file = os.path.join(labels_directory,'labels.csv')
@@ -364,11 +432,33 @@ class Classification_Benchmark:
             pd.DataFrame(self.valid_y[fold]).to_csv(labels_file)
         else:
             pass
-            #print('Labels exist.')
 
-        return prob_preds
+    def save_hold_out_labels(self):
+        # Set the labels directory
+        labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout','labels')
+        self.make_path(labels_directory)        
+        # If label.csv exists then ignore, else write it.
+        labels_file = os.path.join(labels_directory,'labels.csv')
+        if not os.path.exists( labels_file ):
+            pd.DataFrame(self.test_y).to_csv(labels_file)
+        else:
+            pass #print('Labels exist.')
 
-    def get_model_predictions_holdout(self, model:object) -> None:
+    def save_model_preds(self, prob_preds:list, fold:int) -> None:
+    
+        # Store predictions
+        preds_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'CV',str(fold),self.optimizer)
+        
+        # Create directories
+        self.make_path(preds_directory)
+
+        # save predictions per configuration
+        path_per_config = os.path.join(preds_directory,'C'+str(self.iter)+'.csv')
+
+        pd.DataFrame(prob_preds).to_csv(path_per_config)
+
+
+    def save_model_preds_holdout(self, prob_preds:list) -> None:
         
         # Store the score of the optimizer
         preds_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout',self.optimizer)
@@ -380,28 +470,18 @@ class Classification_Benchmark:
         
         # IF holdout has not run yet. ( Only triggered the first time for CV. Useful for single-fold.)
         if not os.path.exists( path_per_config ):
-            # Get the predictions from the model.
-            prob_preds = model.predict_proba( self.test_X )
-            if self.inversion_need_holdout == True:
-                prob_preds = prob_preds[:,[1,0]]
             #prob_preds = np.around(prob_preds,4)
             pd.DataFrame(prob_preds).to_csv(path_per_config)
-            
         else:
-            pass #print('Labels exist.')
+            pass 
         
-        # RESET Inversion.
-        self.inversion_need_holdout = False
         
-        # Set the labels directory
-        labels_directory = os.path.join(os.getcwd(),self.experiment,str(self.task_id),str(self.seed),'Holdout','labels')
-        self.make_path(labels_directory)        
-        # If label.csv exists then ignore, else write it.
-        labels_file = os.path.join(labels_directory,'labels.csv')
-        if not os.path.exists( labels_file ):
-            pd.DataFrame(self.test_y).to_csv(labels_file)
-        else:
-            pass #print('Labels exist.')
+    def print_message(self, config, cv_score, hold_score, iter):
+        """if config['model'] == 'SVM' and cv_score < 0.5:
+            print("===========================")
+            print(f'{config["model"]} CV : {np.round(1-cv_score,4)} , Holdout {np.round(hold_score,4)} iter {iter}')
+            print("===========================")"""
+        return
 
 
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
@@ -423,8 +503,9 @@ class Classification_Benchmark:
 
         self.iter += 1
 
-        print(f'CV Score : {auc_score} , Holdout Score {1-test_auc_score}')
+        self.print_message(configuration, auc_score, test_auc_score, self.iter)
         
+
         return 1 - auc_score # Minimize the auc score loss.
 
 
@@ -444,7 +525,7 @@ class Classification_Benchmark:
 
         test_auc_score = self.objective_function_test(configuration)
 
-        print(f'CV Score : {1- auc_score} , Holdout Score {test_auc_score}')
+        self.print_message(configuration, auc_score, test_auc_score, self.iter)
 
         # check this one. Val_loss
         return 1 - auc_score
@@ -467,7 +548,7 @@ class Classification_Benchmark:
         
         self.iter += 1
 
-        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+        self.print_message(configuration, auc_score, test_auc_score, self.iter)
 
         return 1 - auc_score
 
@@ -514,9 +595,10 @@ class Classification_Benchmark:
         # Change
         test_auc_score = self.mango_function_test(configuration,model_type)
 
-        print(f'CV Score : {auc_score} , Holdout Score {1-test_auc_score}')
+        self.print_message(configuration, auc_score, test_auc_score, self.iter)
 
         self.iter += 1
+        print(f'self.iter {self.iter}')
         
         return auc_score
     
@@ -573,7 +655,7 @@ class Classification_Benchmark:
         # CHANGE.
         test_auc_score = self.optuna_function_test(model_to_train)
 
-        print(f'CV Score : {1 - auc_score} , Holdout Score {test_auc_score}')
+        self.print_message(model_to_train, auc_score, test_auc_score, self.iter)
 
         self.iter += 1
 
@@ -621,9 +703,9 @@ class Classification_Benchmark:
         # Change
         test_auc_score = self.hyperopt_function_test(configuration)
 
-        print(f'CV Score : { 1- auc_score } , Holdout Score {test_auc_score}')
-
         self.iter += 1
+
+        self.print_message(configuration, auc_score, test_auc_score, self.iter)
         
         return 1 - auc_score
     
