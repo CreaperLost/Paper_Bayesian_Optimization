@@ -112,10 +112,10 @@ def plot_score_per_dataset(path:str ,opt_list: list):
     
     for opt in opt_list:
         # Get the CV cumulative score and the locations of maximums
-        cumulative_score, index_of_max = get_cv_score_per_opt(path, opt)
+        cumulative_score, index_of_max = get_cv_score_per_opt(path, opt, False, min, max)
         score = get_holdout_score_per_opt(path, opt, index_of_max)
         plt.plot(cumulative_score,label =f'CV Score{opt}',color = color_per_opt(opt))
-        plt.axhline(y=score,label=f'Holdout {opt}')
+        #plt.axhline(y=score,label=f'Holdout {opt}')
         
         max_score = max_score if max_score > cumulative_score.max() else cumulative_score.max()
         max_score = max_score if max_score > score.max() else score.max()
@@ -140,7 +140,8 @@ def create_plot_per_dataset(experiment:str, datasets:list, opt_list:list ):
         plt.xticks(np.arange(0, 350, 50))
         plt.legend()
         plt.title(f'Comparison for {data_id} named: {titled}')
-        plt.savefig(f'figures/{titled,data_id}.png')
+        #plt.savefig(f'figures/{titled,data_id}.png')
+        plt.show()
         plt.clf()
 
 
@@ -251,7 +252,8 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
 datasets  = ABLATION_DATASETS
 experiment = ABLATION
 
-#create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['RF','GP'])
+
+create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS'])
 
 
 create_plot_average(experiment=experiment, datasets=datasets, opt_list=['RF','GP','RF_GRID','RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS'],norm_score=False)
