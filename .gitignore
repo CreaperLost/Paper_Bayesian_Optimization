@@ -8,3 +8,12 @@ ABLATION/
 ablation_run/
 ablation_scores/
 figures/
+results_ensemble_DT.csv
+
+results_ensemble_linearSVM.csv
+
+results_ensemble_rbfSVM.csv
+
+results_ensemble_RF.csv
+
+results_ensemble_XGB.csv

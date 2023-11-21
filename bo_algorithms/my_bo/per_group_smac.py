@@ -28,7 +28,7 @@ from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Local_Maximizer import Sob
 # Surrogate model
 from bo_algorithms.my_bo.surrogate.RandomForest import Simple_RF
 from bo_algorithms.my_bo.surrogate.GaussianProcess_surrogate import GaussianProcess
-
+from bo_algorithms.my_bo.surrogate.RandomForest_ensembles import  Ensemble_RF
 
 class Per_Group_Bayesian_Optimization:
     """The Random Forest Based Regression Local Bayesian Optimization.
@@ -157,6 +157,9 @@ class Per_Group_Bayesian_Optimization:
         self.checks_time = np.array([])
         self.total_time = np.array([])
 
+        if model =='Ensemble_RF':
+            self.fx_per_fold  = None
+
         #Number of current evaluations!
         self.n_evals = 0 
          
@@ -176,12 +179,17 @@ class Per_Group_Bayesian_Optimization:
         elif model =='GP':
             print('Mode is GP')
             self.model = GaussianProcess(self.config_space,seed=random_seed,box_cox_enabled=box_cox_enabled )
+        elif model =='Ensemble_RF':
+            print('Mode is Ensemble_RF')
+            self.model = Ensemble_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
         
+
+        self.model_name = model
+
         self.batch_size = 1
 
         if acq_funct == "EI":
             self.acquisition_function = EI(self.model)
-            
             if maximizer == 'Sobol':
                 if local_search == False:
                     print('Sobol No local Search')
@@ -375,9 +383,14 @@ class Per_Group_Bayesian_Optimization:
         X = self.X  
         # Standardize values
         fX = self.fX
-
-        #here we train...
-        self.model.train(X,fX)
+            
+        if self.model_name =='Ensemble_RF':
+            fx_per_fold = self.fx_per_fold
+            #here we train...
+            self.model.train(X, fx_per_fold)
+        else:
+            self.model.train(X,fX)
+            
 
         #Always update the acquisition function with the new surrogate model.
         self.acquisition_function.update(self.model)
@@ -432,13 +445,18 @@ class Per_Group_Bayesian_Optimization:
         ## Make sure the vector is in config_space, in order to be run fast by the model
         config = self.vector_to_configspace( X_next )
 
-        #Run the objective function
-        res = self.f(self.add_group_name_to_config(config))
+
+        if self.model_name =='Ensemble_RF':
+            #Run the objective function
+            res, fold_values = self.f(self.add_group_name_to_config(config))
+        else: 
+            res = self.f(self.add_group_name_to_config(config))
+
         
         #Get the AUC - R2 etc.
         fX_next = res #['function_value']
         #print(self.group_name,fX_next)
- 
+
         #Increase the number of evaluations
         self.n_evals+=self.batch_size
 
@@ -446,6 +464,12 @@ class Per_Group_Bayesian_Optimization:
         
         self.X = np.vstack((self.X, deepcopy(X_next)))
         self.fX = np.concatenate((self.fX, [fX_next]))
+
+        if not isinstance(self.fx_per_fold, np.ndarray):
+            self.fx_per_fold = np.array([fold_values])
+        else:
+            self.fx_per_fold = np.concatenate((self.fx_per_fold,[fold_values]))
+
 
         #This is a better interpretable form of storing the configurations.
         new_row = pd.DataFrame(config.get_dictionary().copy(),index=[0])
