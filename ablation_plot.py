@@ -7,7 +7,7 @@ from sklearn.metrics import roc_auc_score
 from specify_experiments  import *
 
 import matplotlib.pyplot as plt
-from global_utilities.bbc_cv import bbc
+from global_utilities.bbc_cv import bbc,bbc_parallel
 
 plot_for = ABLATION
 
@@ -239,7 +239,7 @@ def turn_multiclass_list_into_pd(list_multiclass):
         data_numpy = df.values.tolist()
         new_df[config_num] = data_numpy
 
-    return new_df
+    return new_df.copy()
 
 def merge_tables(probs_dictionary:dict) -> (dict,dict):
     per_dataset_config_matrix = {}
@@ -266,14 +266,17 @@ def merge_tables(probs_dictionary:dict) -> (dict,dict):
 import multiprocessing
 import concurrent.futures
 
-
+import time 
 datasets = ABLATION_DATASETS
 
 def get_bbc_scores():
     for data_id in datasets:
         labels_CV_df = get_CV_labels(data_id)
-        for opt in ['GP','RF']:
+        for opt in ['RF']:
             
+
+            st = time.time()
+
             #cvScoreOpt = aggregate_opt_CV_per_dataset(opt,data_id)
             
             rf_CV_results = get_CV_probs(data_id ,opt)
@@ -282,12 +285,12 @@ def get_bbc_scores():
             labels_matrix,fold_membership_labels = merge_tables(labels_CV_df)
 
 
-            def process_seed(i, config_matrix, labels_matrix, fold_membership,type_pf_bbc):
-                print(f'Seed: {i}')
+            """def process_seed(i, config_matrix, labels_matrix, fold_membership,type_pf_bbc):
+                #print(f'Seed: {i}')
                 seed_score = bbc(np.array(config_matrix[i]), np.array(labels_matrix[i]),
                                 'classification',
                                 fold_membership[i],
-                                iterations=100, bbc_type=type_pf_bbc, multi_class=True)
+                                iterations=50, bbc_type=type_pf_bbc, multi_class=True)
                 return (i,np.mean(seed_score))
             
             # Define fixed arguments for the process_seed function
@@ -297,9 +300,28 @@ def get_bbc_scores():
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 # Use a lambda function to pass the seed-specific argument
                 results = list(executor.map(lambda i: process_seed(i, *fixed_args), N_SEEDS))
+            """
+            bbc_per_seed  = []
+            for i in N_SEEDS:
+                results = bbc_parallel(np.array(config_matrix[i]), np.array(labels_matrix[i]),
+                                'classification',
+                                fold_membership[i],
+                                iterations=500, bbc_type='pooled', multi_class=True)
+                bbc_per_seed.append((i,np.mean(results)))
 
+            df = pd.DataFrame(bbc_per_seed)
+            print(df)
 
-            print(results)
+            path = f'ablation_scores/{data_id}/BBC/'
+
+            # Check if directories exist, and create them if needed
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+            df.to_csv(f'{path}{opt}.csv',index=0)
+            
+
+            print(f'Time cost {time.time()-st}')
             # Sum up the results
             #corrected_score = sum(results)
             
@@ -327,7 +349,7 @@ def per_dataset_plot():
         # Get Labels. Per seed for a dataset
         holdout_labels_df = get_hold_out_labels(data_id)
 
-        for opt in ['RF_GRID_LOCAL_TRANS']:
+        for opt in ['RF_GRID_LOCAL_BIG_INIT']:
 
             # Gets the labels and the predictions of an optimizer.
             print(opt)
@@ -490,5 +512,5 @@ def per_dataset_plot():
                     #plt.show()
 
 
-per_dataset_plot()
-#get_bbc_scores()
+#per_dataset_plot()
+get_bbc_scores()

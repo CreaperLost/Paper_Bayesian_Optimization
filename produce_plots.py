@@ -78,6 +78,8 @@ def color_per_opt(opt):
         color = 'purple'
     elif opt == 'RF_GRID_LOCAL_TRANS':
         color = 'grey'
+    elif opt == 'RF_GRID_LOCAL_INIT':
+        color = 'black'
 
     return color
 
@@ -161,12 +163,12 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 from scipy import stats
 
 def do_Test(before,after):
-    print(f'Means  : { np.round(np.mean(after),5),np.round( np.mean(before),5 ) }')
-    print(f'Mean Diff : { np.round(np.mean(after) - np.mean(before),5 ) }')
+    print(f'Score after { np.round(np.mean(after),5)} before {np.round( np.mean(before),5 ) }')
+    print(f'Mean Diff AFter - Before : { np.round(np.mean(after) - np.mean(before),5 ) }')
     """print('Median Diff',np.median(before)-np.median(after))
     print('Min Diff',np.min(before)-np.min(after))
     print('Max Diff',np.max(before)-np.max(after))"""
-    print('Percentage change % ', 100*(np.mean(after) - np.mean(before))/np.mean(before))
+    print('Percentage change % (>0\% improvement)', 100*(np.mean(after) - np.mean(before))/np.mean(before))
    
     _,p_val = stats.ttest_rel(after,before,alternative='greater')
     _,p_val2 = stats.wilcoxon(after,before,alternative='greater')
@@ -199,6 +201,7 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
             # Get the CV cumulative score and the locations of maximums
             cumulative_score, index_of_max = get_cv_score_per_opt(path, opt, norm_score, min, max)
             score = get_holdout_score_per_opt(path, opt, index_of_max)
+
             cv_scores_per_opt[opt].append(cumulative_score[349])
             holdout_scores_per_opt[opt].append(score)
 
@@ -237,6 +240,17 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
     do_Test(cv_scores_per_opt['RF_GRID_LOCAL'],cv_scores_per_opt['RF_GRID_LOCAL_TRANS'])
     print(f"% Wins of RF_Trans over RF_Local : {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS')}")
 
+    print('20init vs  10 init')
+    do_Test(cv_scores_per_opt['RF_GRID_LOCAL'],cv_scores_per_opt['RF_GRID_LOCAL_INIT'])
+    print(f"% Wins of RF-simple 20 init over RF_Local 10: {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL_INIT')}")
+
+    print('20 vs  30 init')
+    do_Test(cv_scores_per_opt['RF_GRID_LOCAL'],cv_scores_per_opt['RF_GRID_LOCAL_BIG_INIT'])
+    print(f"% Wins of RF-simple init 30 over RF_Local 20 init : {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL_BIG_INIT')}")
+
+
+
+
     """print('Test GP vs RF_GRID With local search + small grid')
     do_Test(cv_scores_per_opt['GP'],cv_scores_per_opt['RF_GRID_LOCAL'])"""
     
@@ -253,7 +267,8 @@ datasets  = ABLATION_DATASETS
 experiment = ABLATION
 
 
-create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS'])
+#create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS'])
 
 
-create_plot_average(experiment=experiment, datasets=datasets, opt_list=['RF','GP','RF_GRID','RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS'],norm_score=False)
+create_plot_average(experiment=experiment, datasets=datasets, 
+                    opt_list=['RF','GP','RF_GRID','RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS','RF_GRID_LOCAL_INIT','RF_GRID_LOCAL_BIG_INIT'],norm_score=False)
