@@ -92,6 +92,14 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                 configspace,config_dict = benchmark_.get_configuration_space()
                 if adaptive == True:
                     raise KeyError
+                elif model == 'Ensemble_RF':
+                    objective_function = benchmark_.objective_function_ensemble
+                    Optimization = RF_Local(f=objective_function, model=model ,lb= None, ub =None ,
+                                            configuration_space=config_dict,\
+                                            n_init=n_init,max_evals=max_evals,initial_design=None,
+                                            random_seed=seed,maximizer='Sobol',
+                                            local_search=local_search_enabled,
+                                            grid_values = grid_vals,box_cox_enabled = output_transformation_enabled)
                 else:
                     Optimization = RF_Local(f=objective_function, model=model ,lb= None, ub =None ,
                                             configuration_space=config_dict,\

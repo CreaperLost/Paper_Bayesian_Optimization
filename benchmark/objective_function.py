@@ -362,7 +362,6 @@ class Classification_Benchmark:
         And return the average score.
         """
         val_scores = []
-        
         for model_fold in range(len(model_list)):
             score_on_fold = self.apply_model_to_valid_fold(model_list[model_fold], model_fold)  
             val_scores.append(score_on_fold)
@@ -370,6 +369,24 @@ class Classification_Benchmark:
         #print(f'Cross Validation scores: {val_scores}')
         m_val = np.mean(val_scores)
         return m_val
+    
+
+    def apply_model_to_cv_ensemble(self, model_list: list) -> (float,list):
+        """
+        Apply each of the learned model to the appropriate validation set. 
+        Get the AUC score.
+        And return the average score.
+        """
+        val_scores = []
+        scores = []
+        for model_fold in range(len(model_list)):
+            score_on_fold = self.apply_model_to_valid_fold(model_list[model_fold], model_fold)  
+            val_scores.append(score_on_fold)
+            scores.append(1-score_on_fold)
+            
+        #print(f'Cross Validation scores: {val_scores}')
+        m_val = np.mean(val_scores)
+        return m_val, scores
     
     def apply_model_to_holdout(self, model:object) -> int:
         """
@@ -506,8 +523,33 @@ class Classification_Benchmark:
         self.print_message(configuration, auc_score, test_auc_score, self.iter)
         
 
-        return 1 - auc_score # Minimize the auc score loss.
+        return 1 - auc_score  # Minimize the auc score loss.
+    
+    #
 
+    # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
+    # pylint: disable=arguments-differ
+    def objective_function_ensemble(self,
+                           configuration: Union[CS.Configuration, Dict]) -> Dict:
+        """
+        Function that evaluates a 'config' on a 'fidelity' on the validation set
+        """
+        self._check_and_cast_configuration(configuration, self.configuration_space)
+
+        #Get a x models trained.
+        model_list = self._train_objective(configuration,  evaluation="val")
+
+        # Apply the models.
+        auc_score,scores = self.apply_model_to_cv_ensemble(model_list)
+
+        test_auc_score = self.objective_function_test(configuration)
+
+        self.iter += 1
+
+        self.print_message(configuration, auc_score, test_auc_score, self.iter)
+        
+
+        return 1 - auc_score, scores  # Minimize the auc score loss.
 
     #Get the current fold, train a model and then apply on validation set to get AUC score returned.
     def objective_function_per_fold(self, configuration: Union[CS.Configuration, Dict], fold=None) -> float:

@@ -64,10 +64,6 @@ OPTIMIZERS = [
      'N_INIT'  :20,
      'ADAPTIVE': False,
     },
-"""
-
-
-ABLATION_CONFIG_LIST = [
     {'name':'RF_GRID_LOCAL_INIT',
      'SURROGATE' : 'RF',
      'ACQ_GRID': 900,
@@ -77,6 +73,18 @@ ABLATION_CONFIG_LIST = [
      'ADAPTIVE': False,
     },
    
+"""
+
+
+ABLATION_CONFIG_LIST = [
+    {'name': 'RF_GRID_LOCAL-Ensemble',
+     'SURROGATE' : 'Ensemble_RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
 ]
 
 """
