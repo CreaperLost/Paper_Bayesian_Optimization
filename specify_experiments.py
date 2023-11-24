@@ -83,10 +83,6 @@ OPTIMIZERS = [
 """
 
 
-ABLATION_CONFIG_LIST = [
-    
-   
-"""
 
 
 ABLATION_CONFIG_LIST = [
