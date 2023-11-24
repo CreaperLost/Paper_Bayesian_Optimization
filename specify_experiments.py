@@ -86,8 +86,8 @@ OPTIMIZERS = [
 
 
 ABLATION_CONFIG_LIST = [
-    {'name': 'RF_GRID_LOCAL-Ensemble',
-     'SURROGATE' : 'Ensemble_RF',
+    {'name': 'RF_GRID_LOCAL-Ensemble2',
+     'SURROGATE' : 'Ensemble_RF2',
      'ACQ_GRID': 900,
      'LOCAL_SEARCH':True,
      'OUTPUT_TRANSFORMATION' : None,

@@ -29,6 +29,7 @@ from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Local_Maximizer import Sob
 from bo_algorithms.my_bo.surrogate.RandomForest import Simple_RF
 from bo_algorithms.my_bo.surrogate.GaussianProcess_surrogate import GaussianProcess
 from bo_algorithms.my_bo.surrogate.RandomForest_ensembles import  Ensemble_RF
+from bo_algorithms.my_bo.surrogate.RandomForest_ensembles2 import Ensemble_RF2
 
 class Per_Group_Bayesian_Optimization:
     """The Random Forest Based Regression Local Bayesian Optimization.
@@ -157,7 +158,7 @@ class Per_Group_Bayesian_Optimization:
         self.checks_time = np.array([])
         self.total_time = np.array([])
 
-        if model =='Ensemble_RF':
+        if model =='Ensemble_RF' or model == 'Ensemble_RF2':
             self.fx_per_fold  = None
 
         #Number of current evaluations!
@@ -182,7 +183,9 @@ class Per_Group_Bayesian_Optimization:
         elif model =='Ensemble_RF':
             print('Mode is Ensemble_RF')
             self.model = Ensemble_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
-        
+        elif model == 'Ensemble_RF2':
+            print('Mode is Ensemble_RF2')
+            self.model = Ensemble_RF2(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
 
         self.model_name = model
 
@@ -384,7 +387,7 @@ class Per_Group_Bayesian_Optimization:
         # Standardize values
         fX = self.fX
             
-        if self.model_name =='Ensemble_RF':
+        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2':
             fx_per_fold = self.fx_per_fold
             #here we train...
             self.model.train(X, fx_per_fold)
@@ -446,7 +449,7 @@ class Per_Group_Bayesian_Optimization:
         config = self.vector_to_configspace( X_next )
 
 
-        if self.model_name =='Ensemble_RF':
+        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2':
             #Run the objective function
             res, fold_values = self.f(self.add_group_name_to_config(config))
         else: 

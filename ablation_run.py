@@ -92,7 +92,7 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                 configspace,config_dict = benchmark_.get_configuration_space()
                 if adaptive == True:
                     raise KeyError
-                elif model == 'Ensemble_RF':
+                elif model == 'Ensemble_RF' or model == 'Ensemble_RF2':
                     objective_function = benchmark_.objective_function_ensemble
                     Optimization = RF_Local(f=objective_function, model=model ,lb= None, ub =None ,
                                             configuration_space=config_dict,\
