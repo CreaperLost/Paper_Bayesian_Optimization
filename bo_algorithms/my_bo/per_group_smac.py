@@ -30,7 +30,7 @@ from bo_algorithms.my_bo.surrogate.RandomForest import Simple_RF
 from bo_algorithms.my_bo.surrogate.GaussianProcess_surrogate import GaussianProcess
 from bo_algorithms.my_bo.surrogate.RandomForest_ensembles import  Ensemble_RF
 from bo_algorithms.my_bo.surrogate.RandomForest_ensembles2 import Ensemble_RF2
-
+from bo_algorithms.my_bo.surrogate.RandomForest_Pooled import Pooled_RF
 class Per_Group_Bayesian_Optimization:
     """The Random Forest Based Regression Local Bayesian Optimization.
     
@@ -158,7 +158,7 @@ class Per_Group_Bayesian_Optimization:
         self.checks_time = np.array([])
         self.total_time = np.array([])
 
-        if model =='Ensemble_RF' or model == 'Ensemble_RF2':
+        if model =='Ensemble_RF' or model == 'Ensemble_RF2' or model == 'RF_Pooled':
             self.fx_per_fold  = None
 
         #Number of current evaluations!
@@ -174,8 +174,7 @@ class Per_Group_Bayesian_Optimization:
         print(f'Output Transformation {box_cox_enabled}')
         print(f'Grid Values {grid_values}')
         if model =='RF':
-            print('Mode is RF')
-            
+            print('Mode is RF or pooled')
             self.model = Simple_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
         elif model =='GP':
             print('Mode is GP')
@@ -186,6 +185,8 @@ class Per_Group_Bayesian_Optimization:
         elif model == 'Ensemble_RF2':
             print('Mode is Ensemble_RF2')
             self.model = Ensemble_RF2(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
+        elif model == 'RF_Pooled':
+            self.model = Pooled_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
 
         self.model_name = model
 
@@ -387,7 +388,7 @@ class Per_Group_Bayesian_Optimization:
         # Standardize values
         fX = self.fX
             
-        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2':
+        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2' or self.model_name  == 'RF_Pooled':
             fx_per_fold = self.fx_per_fold
             #here we train...
             self.model.train(X, fx_per_fold)
@@ -449,7 +450,7 @@ class Per_Group_Bayesian_Optimization:
         config = self.vector_to_configspace( X_next )
 
 
-        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2':
+        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2' or self.model_name == 'RF_Pooled':
             #Run the objective function
             res, fold_values = self.f(self.add_group_name_to_config(config))
         else: 
