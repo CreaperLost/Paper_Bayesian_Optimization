@@ -160,6 +160,9 @@ class Per_Group_Bayesian_Optimization:
 
         if model =='Ensemble_RF' or model == 'Ensemble_RF2' or model == 'RF_Pooled':
             self.fx_per_fold  = None
+            self.deactive_fold = False
+        else:
+            self.deactive_fold = True
 
         #Number of current evaluations!
         self.n_evals = 0 
@@ -469,10 +472,11 @@ class Per_Group_Bayesian_Optimization:
         self.X = np.vstack((self.X, deepcopy(X_next)))
         self.fX = np.concatenate((self.fX, [fX_next]))
 
-        if not isinstance(self.fx_per_fold, np.ndarray):
-            self.fx_per_fold = np.array([fold_values])
-        else:
-            self.fx_per_fold = np.concatenate((self.fx_per_fold,[fold_values]))
+        if self.deactive_fold == False:
+            if  not isinstance(self.fx_per_fold, np.ndarray):
+                self.fx_per_fold = np.array([fold_values])
+            else:
+                self.fx_per_fold = np.concatenate((self.fx_per_fold,[fold_values]))
 
 
         #This is a better interpretable form of storing the configurations.

@@ -86,11 +86,11 @@ OPTIMIZERS = [
 
 
 ABLATION_CONFIG_LIST = [
-    {'name': 'RF_GRID_LOCAL-Pooled',
-     'SURROGATE' : 'RF_Pooled',
+    {'name': 'GP_0_mean',
+     'SURROGATE' : 'GP',
      'ACQ_GRID': 900,
-     'LOCAL_SEARCH':True,
-     'OUTPUT_TRANSFORMATION' : None,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : 'half',
      'N_INIT'  : 20,
      'ADAPTIVE': False,
     },
