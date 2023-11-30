@@ -1,0 +1,16 @@
+,tid,did,name,source_data,target_feature,MajorityClassSize,MaxNominalAttDistinctValues,MinorityClassSize,NumberOfClasses,NumberOfFeatures,NumberOfInstances,NumberOfInstancesWithMissingValues,NumberOfMissingValues,NumberOfNumericFeatures,NumberOfSymbolicFeatures
+3,3,3,kr-vs-kp,3,class,1669,3,1527,2,37,3196,0.0,0,0,37
+11,11,11,balance-scale,11,class,288,3,49,3,5,625,0.0,0,4,1
+28,28,28,optdigits,28,class,572,10,554,10,65,5620,0.0,0,64,1
+29,29,29,credit-approval,29,class,383,14,307,2,16,690,37.0,67,6,10
+31,31,31,credit-g,31,class,700,10,300,2,21,1000,0.0,0,7,14
+49,49,50,tic-tac-toe,50,Class,626,3,332,2,10,958,0.0,0,0,10
+2079,2079,188,eucalyptus,188,Utility,214,27,105,5,20,736,95.0,448,14,6
+3902,3902,1049,pc4,1049,c,1280,2,178,2,38,1458,0.0,0,37,1
+9960,9960,1497,wall-robot-navigation,1497,Class,2205,4,328,4,25,5456,0.0,0,24,1
+10093,10093,1462,banknote-authentication,1462,Class,762,2,610,2,5,1372,0.0,0,4,1
+14954,14954,6332,cylinder-bands,6332,band_type,312,71,228,2,40,540,263.0,999,18,22
+125920,125920,23381,dresses-sales,23381,Class,290,24,210,2,13,500,401.0,835,1,12
+146822,146822,40984,segment,40984,class,330,7,330,7,20,2310,0.0,0,19,1
+168911,168911,41143,jasmine,41143,class,1492,2,1492,2,145,2984,0.0,0,8,137
+168912,168912,41146,sylvine,41146,class,2562,2,2562,2,21,5124,0.0,0,20,1
