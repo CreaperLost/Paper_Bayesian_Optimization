@@ -80,6 +80,36 @@ OPTIMIZERS = [
      'N_INIT'  :30,
      'ADAPTIVE': False,
     },
+
+
+
+
+    {'name': 'RF_GRID_LOCAL-Pooled',
+     'SURROGATE' : 'RF_Pooled',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
+
+    {'name': 'RF_GRID_LOCAL-Ensemble2',
+     'SURROGATE' : 'Ensemble_RF2',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
+    {'name': 'RF_GRID_LOCAL-Ensemble',
+     'SURROGATE' : 'Ensemble_RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
+]
 """
 
 

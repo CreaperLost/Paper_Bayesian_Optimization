@@ -349,7 +349,7 @@ def per_dataset_plot():
         # Get Labels. Per seed for a dataset
         holdout_labels_df = get_hold_out_labels(data_id)
 
-        for opt in ['RF_GRID_LOCAL-Ensemble']:
+        for opt in ['GP_0_mean']:
 
             # Gets the labels and the predictions of an optimizer.
             print(opt)

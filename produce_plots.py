@@ -271,7 +271,7 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
         ticks.extend(['CV_'+opt])
 
 
-    print("+===========================+")
+    """print("+===========================+")
     print('Test RF vs GP')
     do_Test(cv_scores_per_opt['GP'],cv_scores_per_opt['RF'])
     print(f"% Wins of RF over GP : {count_of_wins(dataframe,'GP','RF')}")
@@ -312,13 +312,22 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
     print("+===========================+")
     print('Local vs Ensemble')
     do_Test(cv_scores_per_opt['RF_GRID_LOCAL'],cv_scores_per_opt['RF_GRID_LOCAL-Ensemble'])
-    print(f"% Wins of RF-Ensemble over RF_Local 20 init : {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble')}")
+    print(f"% Wins of RF-Ensemble over RF_Local 20 init : {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble')}")"""
 
+    """do_Test(cv_scores_per_opt['RF_GRID_LOCAL'],cv_scores_per_opt['RF_GRID_LOCAL-Ensemble2'])
+    print(f"% Wins of RF-Ensemble2 over RF_Local 20 init : {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble')}")"""
 
-
-
+    """do_Test(cv_scores_per_opt['RF_GRID_LOCAL-Ensemble'],cv_scores_per_opt['RF_GRID_LOCAL-Ensemble2'])
+    print(f"% Wins of RF-Ensemble2 over ensembl1  : {count_of_wins(dataframe,'RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2')}")
+    """
+    """do_Test(cv_scores_per_opt['RF_GRID_LOCAL'],cv_scores_per_opt['RF_GRID_LOCAL-Pooled'])
+    print(f"% Wins of RF-Pooled over RF_Local 20 init : {count_of_wins(dataframe,'RF_GRID_LOCAL','RF_GRID_LOCAL-Pooled')}")
+    """
     """print('Test GP vs RF_GRID With local search + small grid')
     do_Test(cv_scores_per_opt['GP'],cv_scores_per_opt['RF_GRID_LOCAL'])"""
+
+    """do_Test(cv_scores_per_opt['GP'],cv_scores_per_opt['GP_0_mean'])
+    print(f"% Wins of GP-0-Mean over GP: {count_of_wins(dataframe,'GP_0_mean','GP')}")"""
     
     plt.xlabel('Optimizer')
     plt.ylabel('AUC Score')
@@ -462,15 +471,19 @@ datasets  = ABLATION_DATASETS
 experiment = ABLATION
 
 
-#create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble'])
+
+# ,'RF_GRID_LOCAL_TRANS','RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2',
+create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['GP_0_mean','GP',])
 
 
-"""create_plot_average(experiment=experiment, datasets=datasets, 
-                    opt_list=['RF','GP','RF_GRID','RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS','RF_GRID_LOCAL_INIT','RF_GRID_LOCAL_BIG_INIT','RF_GRID_LOCAL-Ensemble'],norm_score=False)
-"""
-holdout(experiment=experiment, datasets=datasets, 
+create_plot_average(experiment=experiment, datasets=datasets, 
+                    opt_list=['GP','GP_0_mean'],norm_score=False)
+
+# 'RF_GRID_LOCAL_INIT','RF_GRID_LOCAL_BIG_INIT', 'RF','GP','RF_GRID', ,'RF_GRID_LOCAL-Pooled' ,'RF_GRID_LOCAL_TRANS', 'RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2'
+
+"""holdout(experiment=experiment, datasets=datasets, 
                     opt_list=['RF_GRID_LOCAL'],norm_score=False)
 
-"""
+
 holdout_per_dataset(experiment=experiment, datasets=datasets, 
                     opt_list=['RF_GRID_LOCAL'],norm_score=False)"""
