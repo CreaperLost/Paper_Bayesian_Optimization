@@ -31,7 +31,7 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
     out_of_bag_performances = [] # list to store the bootstrap values for each iteration
     if bbc_type == 'pooled':
         for i in range(iterations):
-            print(f'iter {i}')
+            #print(f'iter {i}')
             in_bag_indices = sorted(np.random.choice(N, N, replace=True)) # Bootstrap sampling with replacement
             out_of_bag_indices = list(set(list(range(N))) - set(in_bag_indices)) # Remaining samples that will be used to calculate the performance of the winner configuration
         
@@ -52,7 +52,7 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
     elif bbc_type == 'averaged': # This is a different version that takes into account the fold memberships of the samples and calculated the configuration performances by fold for the in_bag and out_of_bag
         fold_ids = np.unique(folds)
         for i in range(iterations):
-            print(f'iter {i}')
+            #print(f'iter {i}')
             in_bag_indices = sorted(np.random.choice(N, N, replace=True))
             out_of_bag_indices = list(set(list(range(N))) - set(in_bag_indices))
             in_bag_performances = []
@@ -72,3 +72,50 @@ def bbc(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=
             out_of_bag_performances.append(np.mean(out_of_bag_fold_performances))
         bbc_distribution = out_of_bag_performances
     return bbc_distribution
+
+
+import multiprocessing
+import concurrent.futures
+
+
+# BBC calculation function
+def bbc_parallel(oos_matrix, labels, analysis_type, folds, bbc_type='pooled', iterations=1000,multi_class = False):
+    
+    # Select the appropriate metric.
+    if analysis_type == 'classification':
+        metric = roc_auc_score # you can replace this to use a different metric if you like
+    else:
+        metric = r2_score # you can replace this to use a different metric if you like
+
+    N = len(labels)
+    C = oos_matrix.shape[1]
+
+    out_of_bag_performances = [] # list to store the bootstrap values for each iteration
+
+    def process_iteration(i,oos_matrix, labels, N, C, multiclass, metric):
+            in_bag_indices = sorted(np.random.choice(N, N, replace=True)) # Bootstrap sampling with replacement
+            out_of_bag_indices = list(set(list(range(N))) - set(in_bag_indices)) # Remaining samples that will be used to calculate the performance of the winner configuration
+        
+            in_bag_performances = [] # List to store the configuration performances on the in_bag_indeces samples
+            for j in range(C):
+                if multi_class == True:
+                    new_df =np.array([np.array(xi) for xi in oos_matrix[in_bag_indices,j]])
+                    in_bag_performances.append(metric(labels[in_bag_indices], new_df, multi_class='ovr'))
+                else:
+                    in_bag_performances.append(metric(labels[in_bag_indices], oos_matrix[in_bag_indices, j]))
+            winner_configuration = np.argmax(in_bag_performances) # Best configuration on the in_bag_indices data
+            if multi_class == True:
+                new_df =np.array([np.array(xi) for xi in oos_matrix[out_of_bag_indices, winner_configuration]])
+                return metric(labels[out_of_bag_indices],new_df,multi_class='ovr')
+            else:
+                return metric(labels[out_of_bag_indices],oos_matrix[out_of_bag_indices, winner_configuration])
+    
+
+    fixed_args = (oos_matrix, labels, N, C, multi_class ,metric)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Use a lambda function to pass the seed-specific argument
+        out_of_bag_performances = list(executor.map(lambda i: process_iteration(i,*fixed_args), range(iterations)))
+
+    
+    return  out_of_bag_performances

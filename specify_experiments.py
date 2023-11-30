@@ -72,16 +72,55 @@ OPTIMIZERS = [
      'N_INIT'  :10,
      'ADAPTIVE': False,
     },
-   
-"""
+    {'name':'RF_GRID_LOCAL_BIG_INIT',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : False,
+     'N_INIT'  :30,
+     'ADAPTIVE': False,
+    },
 
 
-ABLATION_CONFIG_LIST = [
+
+
+    {'name': 'RF_GRID_LOCAL-Pooled',
+     'SURROGATE' : 'RF_Pooled',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
+
+    {'name': 'RF_GRID_LOCAL-Ensemble2',
+     'SURROGATE' : 'Ensemble_RF2',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
     {'name': 'RF_GRID_LOCAL-Ensemble',
      'SURROGATE' : 'Ensemble_RF',
      'ACQ_GRID': 900,
      'LOCAL_SEARCH':True,
      'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
+]
+"""
+
+
+
+
+ABLATION_CONFIG_LIST = [
+    {'name': 'GP_0_mean',
+     'SURROGATE' : 'GP',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : 'half',
      'N_INIT'  : 20,
      'ADAPTIVE': False,
     },
@@ -98,7 +137,7 @@ ABLATION_CONFIG_LIST = [
      'ACQ_GRID': 900,
      'LOCAL_SEARCH':True,
      'OUTPUT_TRANSFORMATION' : True,
-     'N_INIT'  :10,
+     'N_INIT'  :20,
      'ADAPTIVE': True,
     }
 

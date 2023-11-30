@@ -240,7 +240,8 @@ class GaussianProcess(BaseModel):
                 y = tmp_y
 
             y = self._normalize_y(y)
-
+        elif self.standardize_output == 'half':
+            y = self._normalize_y(y)
 
         y = y.flatten()
 
@@ -403,7 +404,7 @@ class GaussianProcess(BaseModel):
             mu = self.gp.predict(X_test)
             var = None
 
-            if self.standardize_output == True:
+            if self.standardize_output == True or self.standardize_output == 'half':
                 mu = self._untransform_y(mu,var)
 
         else:
@@ -421,7 +422,7 @@ class GaussianProcess(BaseModel):
             # positive float value
             var = np.clip(var, 0.0000001, np.inf)
 
-            if self.standardize_output == True:
+            if self.standardize_output == True or self.standardize_output == 'half':
                 mu, var = self._untransform_y(mu, var)
 
             if cov_return_type == "diagonal_std":
@@ -451,7 +452,7 @@ class GaussianProcess(BaseModel):
         #X_test = self._impute_inactive(X_test)
         funcs = self.gp.sample_y(X_test, n_samples=n_funcs, random_state=self.rng)
 
-        if self.standardize_output == True:
+        if self.standardize_output == True or self.standardize_output == 'half':
             funcs = self._untransform_y(funcs)
 
         if len(funcs.shape) == 1:
