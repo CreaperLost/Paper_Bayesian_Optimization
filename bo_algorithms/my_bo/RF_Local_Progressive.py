@@ -16,7 +16,7 @@ import pandas as pd
 
 
 
-
+ 
 class RF_Local_Progressive:
     """The Random Forest Based Regression Local Bayesian Optimization.udnn-cu11, minio, kiwisolver, Jinja2, importlib-metadata, emcee, Deprecated, autograd, alive-progress, xgboost, torch, stevedore, scikit-learn, requests-toolbelt, paramz, pandas, matplotlib, george, debtcollector, dask, ConfigSpace, click, autograd-gamma, torchvision, statsmodels, pymoo, oslo.utils, oslo.config, openml, gpytorch, GPy, formulaic, 
     
@@ -122,8 +122,7 @@ class RF_Local_Progressive:
         self.n_folds = n_folds
         self.run_per_fold = (self.max_evals - (self.n_init*len(self.config_space))) / self.n_folds
 
-
-        print(f' Run per fold {self.run_per_fold}')
+        print(f' Runs per fold {self.run_per_fold}')
 
         #Store the group that was selected at each iteration.
         self.X_group = []
@@ -144,20 +143,12 @@ class RF_Local_Progressive:
     
     # Just call each class and run the initial configurations of each.
     def run_initial_configurations(self):
-        initial_time = []
 
         #train initial configurations and train surrogate per model.
         for classifier_name in self.object_per_group:
             self.object_per_group[classifier_name].run_initial_configurations()
             self.object_per_group[classifier_name].train_surrogate()
-            total_time = self.object_per_group[classifier_name].total_time
-            total_time[-1] += self.object_per_group[classifier_name].surrogate_time[-1]
-                    
-            initial_time.append(total_time)
-
-        #save time cost.
-        self.total_time = np.array(initial_time).flatten()
-
+            
         #store evaluations
         self.n_evals = self.n_init * len(self.object_per_group)
         # Compute incumberment after initial evaluations.
@@ -165,8 +156,9 @@ class RF_Local_Progressive:
         self.track_initial_groups()
 
 
-    # Computate the best configuration.
+    # Compute the best configuration.
     def compute_current_incumberment(self):
+
         inc_score_list = []
         for classifier_name in self.object_per_group:
             inc_score_list.append((self.object_per_group[classifier_name].inc_config , self.object_per_group[classifier_name].inc_score))
@@ -231,70 +223,102 @@ class RF_Local_Progressive:
         for group in self.X_group:
             counter = counter_per_group[group]
             self.fX = np.append(self.fX, self.object_per_group[group].fX[counter])
-            counter_per_group[group]+=1
+            counter_per_group[group] += 1
 
     def track_initial_groups(self):
         for i in range(0,self.n_init):
             for group_name in self.object_per_group:
                 self.X_group.append(group_name)
 
+
+    # Compute the best configuration.
+    def compute_best_config_on_new_fold(self):
+        inc_score_list = []
+        for classifier_name in self.object_per_group:
+            inc_score_list.append((self.object_per_group[classifier_name].inc_config , self.object_per_group[classifier_name].inc_score))
+        
+        # Sort the list by the first element of each tuple
+        # Reverse = False means that the min is first element ( LOWEST ERROR  )
+        sorted_list = sorted(inc_score_list, key=lambda x: x[1],reverse=False)
+        self.inc_config = sorted_list[0][0]
+        self.inc_score = sorted_list[0][1]
+
+        return 1
+
     def run(self):
+        for fold in range(0,self.n_folds):
 
-        #Run initial configurations per algorithm
-        self.run_initial_configurations()
 
-        changed = 1
-
-        while self.n_evals < self.max_evals:
-            # Defense against the dark bugs
-            assert self.n_evals < self.max_evals
-            
-
-            # if incumberment changes --> run acquisition maximization for all groups.
-            if changed == 1:
-                self.max_acquisitions_configs = {}
-                self.max_acquisitions_score = {}
+            # Initialize fold operations
+            if fold == 0:
                 for classifier_name in self.object_per_group:
-                    X_next,acquisition_value =self.object_per_group[classifier_name].suggest_next_point(self.inc_score)
-                    self.max_acquisitions_configs[classifier_name] = X_next
-                    self.max_acquisitions_score[classifier_name] = acquisition_value
+                    self.object_per_group[classifier_name].run_initial_configurations(fold)
+                    self.object_per_group[classifier_name].train_surrogate()
+                self.n_evals = self.n_init * len(self.object_per_group)
+                self.track_initial_groups()
             else:
-                    #Compute acquisition value only for the next new configuration if the incumberment has not changed.
-                X_next,acquisition_value = self.object_per_group[best_next_classifier].suggest_next_point(self.inc_score)
-                self.max_acquisitions_configs[best_next_classifier] = X_next
-                self.max_acquisitions_score[best_next_classifier] = acquisition_value
+                for classifier_name in self.object_per_group:
+                    self.object_per_group[classifier_name].run_old_configs_on_current_fold(fold)
+                    #Computes the average performance on the folds up to the current fold.
+                    self.object_per_group[classifier_name].compute_avg_performance(fold)
+                    #Compute the best local configuration for each group
+                    self.object_per_group[classifier_name].compute_next_fold_current_inc_after_avg()
+                    #Train the surrogate model.
+                    self.object_per_group[classifier_name].train_surrogate()
 
+            #At this step changed is always 1. As we find the new incumberment on the new fold.
+            changed = self.compute_best_config_on_new_fold()
 
-            #Get the maximum acquisition for all.
-            #Select group with highest acquisition --> check code.
-            best_next_classifier = max(self.max_acquisitions_score, key=lambda k: self.max_acquisitions_score.get(k))
-            #Just add the next group here.
-            self.X_group.append(best_next_classifier)
+            #here we have the first sanity check. The best overall should the same and not change.
             
-            #Get the best configuration using the best group.
-            best_next_config = self.max_acquisitions_configs[best_next_classifier]
+            for iter in range(0,self.run_per_fold):
+                #print(f'currently running iter {iter}, inc score is : {self.inc_score}')
+                #Sanity check.
+                assert self.n_evals <= self.max_evals
+                if changed == 1:
+                    #Compute acquisition per group. If incumberment has changed then compute acquisition again for all.
+                    self.max_acquisitions_configs = {}
+                    self.max_acquisitions_score = {}
+                    for classifier_name in self.object_per_group:
+                        X_next,acquisition_value = self.object_per_group[classifier_name].suggest_next_point(self.inc_score)
+                        self.max_acquisitions_configs[classifier_name] = X_next
+                        self.max_acquisitions_score[classifier_name] = acquisition_value
+                else:
+                    #Compute acquisition value only for the next new configuration if the incumberment has not changed.
+                    X_next,acquisition_value = self.object_per_group[best_next_classifier].suggest_next_point(self.inc_score)
+                    self.max_acquisitions_configs[best_next_classifier] = X_next
+                    self.max_acquisitions_score[best_next_classifier] = acquisition_value
+                    #Make sure this updates correctly.
 
-            #Run objective on this group.
-            fX_next = self.object_per_group[best_next_classifier].run_objective(best_next_config)
+                #Get the maximum acquisition for all.
+                #Select group with highest acquisition --> check code.
+                best_next_classifier = max(self.max_acquisitions_score, key=lambda k: self.max_acquisitions_score.get(k))
+                #Just add the next group here.
+                self.X_group.append(best_next_classifier)
 
-            #Check incumberment
-            changed = self.compute_incumberment_overall()
+                #Get the best configuration using the best group.
+                best_next_config = self.max_acquisitions_configs[best_next_classifier]
+                
+                # Evaluate the new configuration on all folds up to fold. Run objective on this group.
+                # Add also to the self.fX of the group internally.
+                fX_next = self.object_per_group[best_next_classifier].run_objective_on_previous_folds(best_next_config,fold)
+                # Check if incumberment of the group.
+                self.object_per_group[best_next_classifier].compute_current_inc_after_avg()
 
-            #Train the surrogate model for the specific group ONLY.
-            self.object_per_group[best_next_classifier].train_surrogate()
+                self.n_evals += 1
+                
+                #Train the surrogate model for the specific group ONLY.
+                self.object_per_group[best_next_classifier].train_surrogate()
 
-            #Increase n_evals --> current evaluations by batch-size 
-            #Batch Size == 1 for now.
-            self.n_evals+= self.batch_size
-        self.make_X_Y()
+                #Check if new configuration is the incumberment. 
+                changed = self.compute_incumberment_overall()
 
+
+        
+        self.total_time = np.array([0 for i in range(self.max_evals)])
         self.acquisition_time = np.array([0 for i in range(self.max_evals)])
         self.surrogate_time = np.array([0 for i in range(self.max_evals)])
         self.objective_time = np.array([0 for i in range(self.max_evals)])
-        return self.inc_score
-
-
- 
-                
-
-
+        #Makes the final fX score progression
+        self.make_X_Y()
+        return self.inc_score        

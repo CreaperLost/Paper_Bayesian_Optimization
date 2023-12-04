@@ -1,7 +1,7 @@
 from copy import deepcopy
 import numpy as np
 import time
-
+import pandas as pd
 from ConfigSpace import ConfigurationSpace,Configuration
 from ConfigSpace.hyperparameters import CategoricalHyperparameter, \
     UniformFloatHyperparameter, UniformIntegerHyperparameter, Constant, \
@@ -10,33 +10,31 @@ from ConfigSpace.util import impute_inactive_values,deactivate_inactive_hyperpar
 
 from typing import List
 import typing
- 
-from acquisition_functions.ei_mine import EI
-from acquisition_functions.mace import MACE
-
-from initial_design.sobol_design import SobolDesign
-from BayesianOptimizers.SMAC.Sobol_Maximizer import SobolMaximizer
-"""from BayesianOptimizers.SMAC.RandomMaximizer import RandomMaximizer
-from BayesianOptimizers.SMAC.MACE_Maximizer import EvolutionOpt
-from BayesianOptimizers.SMAC.DE_Maximizer import DE_Maximizer
-from BayesianOptimizers.SMAC.Scipy_Maximizer import Scipy_Maximizer"""
-from BayesianOptimizers.SMAC.Sobol_Local_Maximizer import Sobol_Local_Maximizer
-
-from BayesianOptimizers.SMAC.Simple_RF_surrogate import Simple_RF
-
-"""from BayesianOptimizers.SMAC.random_forest_surrogate import RandomForest
-from BayesianOptimizers.SMAC.GaussianProcess_surrogate import GaussianProcess
-from BayesianOptimizers.SMAC.Hebo_Random_Forest_surrogate import HEBO_RF
-from BayesianOptimizers.SMAC.Hebo_GaussianProcess_surrogate import HEBO_GP
-from BayesianOptimizers.SMAC.NGBoost_surrogate import NGBoost_Surrogate
-from BayesianOptimizers.SMAC.BayesianNN_surrogate import BNN_Surrogate"""
 
 
-import pandas as pd
+# Acquisition Function
+from bo_algorithms.my_bo.acquisition_functions.ei_mine import EI
+
+# Initial design
+from bo_algorithms.my_bo.initial_design.sobol_design import SobolDesign
+
+
+# Maximizers
+from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Maximizer import SobolMaximizer
+from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Local_Maximizer import Sobol_Local_Maximizer
 
 
 
-class Greedy_Per_Group:
+# Surrogate model
+from bo_algorithms.my_bo.surrogate.RandomForest import Simple_RF
+from bo_algorithms.my_bo.surrogate.GaussianProcess_surrogate import GaussianProcess
+from bo_algorithms.my_bo.surrogate.RandomForest_ensembles import  Ensemble_RF
+from bo_algorithms.my_bo.surrogate.RandomForest_ensembles2 import Ensemble_RF2
+from bo_algorithms.my_bo.surrogate.RandomForest_Pooled import Pooled_RF
+
+
+
+class Per_Group_Bayesian_Optimization_Progressive:
     """The Random Forest Based Regression Local Bayesian Optimization.
     
     Parameters
@@ -72,7 +70,9 @@ class Greedy_Per_Group:
         random_seed = int(1e6),
         acq_funct = 'EI',
         model = 'RF',
-        maximizer  = 'Sobol',group_name = '',n_folds = 5
+        maximizer  = 'Sobol',group_name = '',
+        local_search=None,grid_values = None,box_cox_enabled=None,
+        n_folds = 5, 
     ):
 
         # Very basic input checks
@@ -136,25 +136,32 @@ class Greedy_Per_Group:
             self.initial_design = SobolDesign(**init_design_def_kwargs)
         
         
-        # Settings 
+        # Settings
         
         self.n_init = n_init #Initial configurations
         self.max_evals = max_evals #Maxmimum evaluations
+        self.batch_size = batch_size #Number of points to maximize  acquisition for.
+        self.verbose = verbose #hm
 
         # Best configuration and the score of the best configuration.
         self.inc_score = np.inf
         self.inc_config = None
 
-        self.n_folds = n_folds
+        #History of actions. Complementary to the X,fx
+        self.history = []
 
-
-        #Keep score of each fold in here...
-        self.y = [list() for _ in range(self.n_folds)]
 
         # Save the full history
         self.X = np.zeros((0, self.dim))
         self.X_df = pd.DataFrame()
         self.fX = np.array([])
+
+
+        self.n_folds = n_folds
+
+        #Keep score of each fold in here...
+        self.y = [list() for _ in range(self.n_folds)]
+
 
         self.surrogate_time = np.array([])
         self.acquisition_time = np.array([])
@@ -162,31 +169,58 @@ class Greedy_Per_Group:
         self.checks_time = np.array([])
         self.total_time = np.array([])
 
+        if model =='Ensemble_RF' or model == 'Ensemble_RF2' or model == 'RF_Pooled':
+            self.fx_per_fold  = None
+            self.deactive_fold = False
+        else:
+            self.deactive_fold = True
+
         #Number of current evaluations!
         self.n_evals = 0 
-        
+         
         #Save the group name here in order to use on configuration objects.
         self.group_name = group_name
 
-        self.n_cand = 900 #min(100 * self.dim, 10000)
-
-
-        self.model = Simple_RF(self.config_space,rng=random_seed,n_estimators=100)
+        # How many candidates per time. (How many Configurations to get out of Sobol Sequence)
+        self.n_cand = grid_values
         
+        print(f'Init {self.n_init} Max Iter: {self.max_evals}')
+        print(f'Output Transformation {box_cox_enabled}')
+        print(f'Grid Values {grid_values}')
+        if model =='RF':
+            print('Mode is RF or pooled')
+            self.model = Simple_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
+        elif model =='GP':
+            print('Mode is GP')
+            self.model = GaussianProcess(self.config_space,seed=random_seed,box_cox_enabled=box_cox_enabled )
+        elif model =='Ensemble_RF':
+            print('Mode is Ensemble_RF')
+            self.model = Ensemble_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
+        elif model == 'Ensemble_RF2':
+            print('Mode is Ensemble_RF2')
+            self.model = Ensemble_RF2(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
+        elif model == 'RF_Pooled':
+            self.model = Pooled_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
+
+        self.model_name = model
+
+        self.batch_size = 1
 
         if acq_funct == "EI":
             self.acquisition_function = EI(self.model)
-            
             if maximizer == 'Sobol':
-                self.maximize_func = SobolMaximizer(self.acquisition_function, self.config_space, self.n_cand)
-            elif maximizer == 'Sobol_Local':
-                self.maximize_func  = Sobol_Local_Maximizer(self.acquisition_function, self.config_space, self.n_cand)
+                if local_search == False:
+                    print('Sobol No local Search')
+                    self.maximize_func = SobolMaximizer(self.acquisition_function, self.config_space, self.n_cand)
+                else:
+                    print('Sobol local Search')
+                    self.maximize_func  = Sobol_Local_Maximizer(self.acquisition_function, self.config_space, self.n_cand)
             else:
                 raise RuntimeError
+            
+        
 
-        
-        self.batch_size = 1
-        
+
 
 
     def vector_to_configspace(self, vector: np.array,from_normalized = True) -> ConfigurationSpace:
@@ -245,7 +279,7 @@ class Greedy_Per_Group:
             )
         except:
             new_config = Configuration(configuration_space=self.config_space, values = new_config,allow_inactive_with_values = True)
-            print(new_config)
+            #print(new_config)
         return new_config
 
 
@@ -332,37 +366,36 @@ class Greedy_Per_Group:
         new_config['model'] = self.group_name
         return new_config
 
-    
-    def run_initial_configurations(self,fold = 0):
-        """
-        Runs the initial (Sobol) configurations at the specified folds.
-        #And sets the X,Y,Fx arrays.
-        #Computes the starting incumberment as well.
-        """
+    def run_initial_configurations(self, fold = 0):
+        '''Creates new population of 'pop_size' and evaluates individuals.
+        '''
 
-        initial_configurations = self.load_initial_design_configurations(self.n_init)
         curr_time = []
-        #Run each initial configuration on fold specified.
+        #extra_overhead_time = time.time()
+        initial_configurations = self.load_initial_design_configurations(self.n_init)
+        #objective_value_per_configuration = np.array([np.inf for i in range(self.n_init)])
+        #end_extra_overhead_time = time.time() - extra_overhead_time
+
         for i in range(self.n_init):
             time_start = time.time()
-            fX_next=self.run_objective(initial_configurations[i],fold)
-            self.check_if_incumberment_initial_configs(self.vector_to_configspace( initial_configurations[i] ),fX_next)
-            #measure the time.
+            fX_next = self.run_objective(initial_configurations[i], fold)
+            self.check_if_incumberment(self.vector_to_configspace( initial_configurations[i] ),fX_next)
+            #Extra timings
             self.surrogate_time = np.concatenate((self.surrogate_time,np.array([0])))
             self.acquisition_time = np.concatenate((self.acquisition_time,np.array([0])))
             end_time = time.time() - time_start
             curr_time.append(end_time)
-            
         self.total_time = np.concatenate((self.total_time,np.array(curr_time)))
 
         #After running all initials save the results on fX
         self.fX = np.array(deepcopy(self.y[fold])) 
-        
+
 
     # Returns the best configuration of this specific group along with the score.
     def return_incumberment(self):
         return ( self.inc_config, self.inc_score)
     
+
 
     #Trains the surrogate model.
     def train_surrogate(self):
@@ -373,14 +406,14 @@ class Greedy_Per_Group:
         X = self.X  
         # Standardize values
         fX = self.fX
-        
-        
-        #print(X.shape)
-        #print(fX.shape)
-        #print(self.y)
-
-        #here we train...
-        self.model.train(X,fX)
+            
+        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2' or self.model_name  == 'RF_Pooled':
+            fx_per_fold = self.fx_per_fold
+            #here we train...
+            self.model.train(X, fx_per_fold)
+        else:
+            self.model.train(X,fX)
+            
 
         #Always update the acquisition function with the new surrogate model.
         self.acquisition_function.update(self.model)
@@ -390,7 +423,13 @@ class Greedy_Per_Group:
         #Add the extra time here.
         self.surrogate_time = np.concatenate((self.surrogate_time,np.array([end_time])))
 
-        
+    # When running on the same folds, check whether the incumberment changes.
+    def compute_current_inc_after_avg(self):
+        if np.min(self.fX) < self.inc_score:
+            self.inc_score = np.min(self.fX)
+            #Here we store a config space object
+            self.inc_config = self.vector_to_configspace(self.X[np.argmin(self.fX)])
+            print(f"{self.group_name} at eval : {self.n_evals}) New best: {self.inc_score:.4}")
 
     # Runs the surrogate on the points provided, computes the acquisition value per point and returns the suggested point + its value.
     def suggest_next_point(self, global_eta:float):
@@ -399,7 +438,7 @@ class Greedy_Per_Group:
         assert self.batch_size == 1
 
         start_time = time.time()
-        
+
         #Search around my current best -- even though I compete against the global best.
         if isinstance(self.maximize_func,Sobol_Local_Maximizer):
             X_next,acquisition_value = self.maximize_func.maximize(self.configspace_to_vector,eta = global_eta,best_config = self.inc_config)
@@ -412,84 +451,7 @@ class Greedy_Per_Group:
         self.acquisition_time = np.concatenate((self.acquisition_time,np.array([end_time])))
 
         return (X_next,acquisition_value)
-
-
-    # Runs the objective function on the specified point.
-    def run_objective(self,X_next:Configuration,fold = None):
-
-        assert self.batch_size == 1
-        assert fold != None
-        #Run objective
-
-        start_time = time.time()
-        
-        ## Make sure the vector is in config_space, in order to be run fast by the model
-        config = self.vector_to_configspace( X_next )
-
-        #Run the objective function
-        res = self.f(self.add_group_name_to_config(config),fold=fold)
-        
-        #Get the AUC - R2 etc.
-        fX_next = res['function_value']
-
-        #Increase the number of evaluations
-        self.n_evals+=self.batch_size
-
-        #Add to X and fX vectors.
-        self.X = np.vstack((self.X, deepcopy(X_next)))
-        self.y[fold].append(fX_next)
-
-
-        #This is a better interpretable form of storing the configurations.
-        new_row = pd.DataFrame(config.get_dictionary().copy(),index=[0])
-        self.X_df = self.X_df.append(new_row,ignore_index=True)
-        
-        
-
-        end_time=time.time() - start_time
-        self.objective_time = np.concatenate((self.objective_time,np.array([end_time])))
-
-        return fX_next
-     
-    # Checks if the current configuration is the incumberment.
-    # Only in initial configurations
-    def check_if_incumberment_initial_configs(self,config:Configuration,fX_next:float):
-
-        start_time = time.time()
-
-        if fX_next < self.inc_score:
-            self.inc_score = fX_next
-            if isinstance(config,Configuration):
-                self.inc_config = config
-            else:
-                #print('Not Configuration')
-                self.inc_config = self.vector_to_configspace( config )
-            print(f"{self.group_name} {self.n_evals}) New best: {self.inc_score:.4}")
-
-        end_time=time.time() - start_time
-
-        self.checks_time = np.concatenate((self.checks_time,np.array([end_time])))
-
-
-    # Computes the total_time cost for this optimization group.
-    def compute_total_time(self):
-
-        time_metrics = [
-            self.acquisition_time,
-            self.surrogate_time,
-            self.objective_time,
-            self.checks_time
-        ]
-
-        self.total_time = np.sum(time_metrics, axis=0)
-        #print(self.total_time)
-
-
-    def run_old_configs_on_current_fold(self,fold):
-        #Run the previous on the new fold. and add the results to the list
-
-        self.y[fold] = [self.f(self.add_group_name_to_config(self.vector_to_configspace( config) ),fold=fold)['function_value'] for config in self.X]
-
+    
     # This will be gready, as we should only care about the current fold avg. Not the previous
     def compute_avg_performance(self,iter_fold):
         # Store the current predictions in np.array
@@ -506,14 +468,73 @@ class Greedy_Per_Group:
         self.inc_config = self.vector_to_configspace(self.X[np.argmin(self.fX)])
         print(f"{self.group_name} at eval : {self.n_evals}) New best: {self.inc_score:.4}")
 
+    # Checks if the current configuration is the incumberment.
+    def check_if_incumberment(self, config:Configuration, fX_next:float):
 
-    # When running on the same folds, check whether the incumberment changes.
-    def compute_current_inc_after_avg(self):
-        if np.min(self.fX) < self.inc_score:
-            self.inc_score = np.min(self.fX)
-            #Here we store a config space object
-            self.inc_config = self.vector_to_configspace(self.X[np.argmin(self.fX)])
-            print(f"{self.group_name} at eval : {self.n_evals}) New best: {self.inc_score:.4}")
+        if fX_next < self.inc_score:
+            self.inc_score = fX_next
+            self.inc_config = config
+            if self.verbose:
+                print(f"{self.group_name} {self.n_evals}) New best: {self.inc_score:.4}")
+
+    # Runs the objective function on the specified point.
+    def run_objective(self, X_next:Configuration, fold:int):
+
+        assert self.batch_size == 1
+        #Run objective
+
+        start_time = time.time()
+        
+        ## Make sure the vector is in config_space, in order to be run fast by the model
+        config = self.vector_to_configspace( X_next )
+
+
+        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2' or self.model_name == 'RF_Pooled':
+            #Run the objective function
+            res, fold_values = self.f(self.add_group_name_to_config(config), fold)
+        else: 
+            res = self.f(self.add_group_name_to_config(config), fold)
+
+        
+        #Get the AUC - R2 etc.
+        fX_next = res 
+        #print(self.group_name,fX_next)
+
+        #Increase the number of evaluations
+        self.n_evals+=self.batch_size
+
+        #Add to X and fX vectors.
+        
+        self.X = np.vstack((self.X, deepcopy(X_next)))
+        self.fX = np.concatenate((self.fX, [fX_next]))
+
+        if self.deactive_fold == False:
+            if  not isinstance(self.fx_per_fold, np.ndarray):
+                self.fx_per_fold = np.array([fold_values])
+            else:
+                self.fx_per_fold = np.concatenate((self.fx_per_fold,[fold_values]))
+
+
+        self.y[fold].append(fX_next)
+
+
+        #This is a better interpretable form of storing the configurations.
+        new_row = pd.DataFrame(config.get_dictionary().copy(),index=[0])
+        self.X_df = self.X_df.append(new_row,ignore_index=True)
+
+        #Check if this is the best configuration.
+        self.check_if_incumberment(config,fX_next)
+
+        end_time=time.time() - start_time
+        self.objective_time = np.concatenate((self.objective_time,np.array([end_time])))
+
+        return fX_next
+    
+    def run_old_configs_on_current_fold(self,fold):
+        #Run the previous on the new fold. and add the results to the list
+
+        self.y[fold] = [self.f(self.add_group_name_to_config(self.vector_to_configspace( config) ),fold=fold) for config in self.X]
+
 
     # This runs a new configuration on all the previous folds. --> Return the average
     def run_objective_on_previous_folds(self,X_next,iter_fold):
@@ -523,7 +544,7 @@ class Greedy_Per_Group:
 
         #print(config)
         #again this is the iterator fold, so its up-to. Fold 0 == Iterator Fold 1.
-        per_fold_auc = [self.f(self.add_group_name_to_config(config),fold=f)['function_value'] for f in range(iter_fold+1)]
+        per_fold_auc = [self.f(self.add_group_name_to_config(config),fold=f) for f in range(iter_fold+1)]
         #print(iter_fold)
         #print(per_fold_auc)
         self.n_evals+=self.batch_size
@@ -539,36 +560,16 @@ class Greedy_Per_Group:
         for f in range(iter_fold+1):
             self.y[f] = self.y[f] + [per_fold_auc[f]]
             
-            
-
+        
         #print(np.mean(per_fold_auc))
         self.fX = np.concatenate((self.fX,np.array([np.mean(per_fold_auc)])))
         #print('Average over folds.')
         #print(self.fX)
         return np.mean(per_fold_auc)
+     
+    # Returns the best configuration of this specific group along with the score.
+    def return_incumberment(self):
+        return ( self.inc_config, self.inc_score)
+
 
         
-    def keep_top(self,k):
-        
-        if len(self.X) == 10:
-            return
-
-
-
-        indexes = np.argpartition(self.fX, k)[:k]
-        self.X = self.X[indexes]
-
-        self.fX = self.fX[indexes]
-
-        self.X_df = self.X_df.iloc[indexes]
-
-        new_list = []
-        for l_elem in self.y:
-            if len(l_elem) == 0:
-                new_list.append([])
-            else:
-                new_list.append([l_elem[i] for i in indexes])
-        self.y = new_list
-
-
-    

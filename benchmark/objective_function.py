@@ -552,10 +552,14 @@ class Classification_Benchmark:
         return 1 - auc_score, scores  # Minimize the auc score loss.
 
     #Get the current fold, train a model and then apply on validation set to get AUC score returned.
-    def objective_function_per_fold(self, configuration: Union[CS.Configuration, Dict], fold=None) -> float:
+    def objective_function_per_fold(self, configuration: Union[CS.Configuration, Dict], fold=None, config_num:int = -1) -> float:
         """Function that evaluates a 'config' on a 'fidelity' on the validation set
         """
         assert fold!= None
+        assert config_num != -1
+
+
+        self.iter = config_num
 
         self._check_and_cast_configuration(configuration, self.configuration_space)
 
@@ -571,6 +575,7 @@ class Classification_Benchmark:
 
         # check this one. Val_loss
         return 1 - auc_score
+    
 
     # The idea is that we run only on VALIDATION SET ON THIS ONE. (K-FOLD)
     # pylint: disable=arguments-differ
