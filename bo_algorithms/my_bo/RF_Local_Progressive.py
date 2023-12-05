@@ -9,7 +9,7 @@ from ConfigSpace.hyperparameters import CategoricalHyperparameter, \
 from ConfigSpace.util import impute_inactive_values,deactivate_inactive_hyperparameters
 
 from typing import List
-from bo_algorithms.my_bo.per_group_smac import Per_Group_Bayesian_Optimization
+from bo_algorithms.my_bo.per_group_smac_progressive import Per_Group_Bayesian_Optimization_Progressive
 
 
 import pandas as pd
@@ -120,7 +120,7 @@ class RF_Local_Progressive:
         self.batch_size = 1
 
         self.n_folds = n_folds
-        self.run_per_fold = (self.max_evals - (self.n_init*len(self.config_space))) / self.n_folds
+        self.run_per_fold = int((self.max_evals - (self.n_init*len(self.config_space))) / self.n_folds)
 
         print(f' Runs per fold {self.run_per_fold}')
 
@@ -133,7 +133,7 @@ class RF_Local_Progressive:
         #Initialize the X and fX dictionaries.
         for classifier_name in configuration_space:
             classifier_specific_config_space = configuration_space[classifier_name]
-            self.object_per_group[classifier_name] = Per_Group_Bayesian_Optimization(f= self.f,lb=None,ub=None,\
+            self.object_per_group[classifier_name] = Per_Group_Bayesian_Optimization_Progressive(f= self.f,lb=None,ub=None,\
                                                                                     configuration_space=classifier_specific_config_space,\
                                                                                     initial_design=initial_design,n_init=n_init,max_evals=max_evals,
                                                                                     batch_size=batch_size,random_seed=random_seed,\
@@ -142,11 +142,11 @@ class RF_Local_Progressive:
                                                                                       local_search=local_search,grid_values = grid_values,box_cox_enabled=box_cox_enabled)
     
     # Just call each class and run the initial configurations of each.
-    def run_initial_configurations(self):
+    def run_initial_configurations(self,fold):
 
         #train initial configurations and train surrogate per model.
         for classifier_name in self.object_per_group:
-            self.object_per_group[classifier_name].run_initial_configurations()
+            self.object_per_group[classifier_name].run_initial_configurations(fold)
             self.object_per_group[classifier_name].train_surrogate()
             
         #store evaluations
@@ -176,8 +176,6 @@ class RF_Local_Progressive:
         #stack fX values per group
         for classifier_name in self.object_per_group:
             df[classifier_name] = self.object_per_group[classifier_name].fX
-        
-
         
         #Compute the incumberment per step per classifer
         self.fX= np.array(df.min(axis=1))
@@ -243,7 +241,7 @@ class RF_Local_Progressive:
         self.inc_config = sorted_list[0][0]
         self.inc_score = sorted_list[0][1]
 
-        return 1
+        return 1 
 
     def run(self):
         for fold in range(0,self.n_folds):
@@ -258,7 +256,6 @@ class RF_Local_Progressive:
                 self.track_initial_groups()
             else:
                 for classifier_name in self.object_per_group:
-                    self.object_per_group[classifier_name].run_old_configs_on_current_fold(fold)
                     #Computes the average performance on the folds up to the current fold.
                     self.object_per_group[classifier_name].compute_avg_performance(fold)
                     #Compute the best local configuration for each group
@@ -301,7 +298,7 @@ class RF_Local_Progressive:
                 
                 # Evaluate the new configuration on all folds up to fold. Run objective on this group.
                 # Add also to the self.fX of the group internally.
-                fX_next = self.object_per_group[best_next_classifier].run_objective_on_previous_folds(best_next_config,fold)
+                self.object_per_group[best_next_classifier].run_objective_on_previous_folds(best_next_config,fold)
                 # Check if incumberment of the group.
                 self.object_per_group[best_next_classifier].compute_current_inc_after_avg()
 

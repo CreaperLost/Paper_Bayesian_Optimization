@@ -18,7 +18,7 @@ from bo_algorithms.my_bo.acquisition_functions.ei_mine import EI
 # Initial design
 from bo_algorithms.my_bo.initial_design.sobol_design import SobolDesign
 
-
+ 
 # Maximizers
 from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Maximizer import SobolMaximizer
 from bo_algorithms.my_bo.acquisition_maximizers.Sobol_Local_Maximizer import Sobol_Local_Maximizer
@@ -159,9 +159,6 @@ class Per_Group_Bayesian_Optimization_Progressive:
 
         self.n_folds = n_folds
 
-        #Keep score of each fold in here...
-        self.y = [list() for _ in range(self.n_folds)]
-
 
         self.surrogate_time = np.array([])
         self.acquisition_time = np.array([])
@@ -169,11 +166,9 @@ class Per_Group_Bayesian_Optimization_Progressive:
         self.checks_time = np.array([])
         self.total_time = np.array([])
 
-        if model =='Ensemble_RF' or model == 'Ensemble_RF2' or model == 'RF_Pooled':
-            self.fx_per_fold  = None
-            self.deactive_fold = False
-        else:
-            self.deactive_fold = True
+        self.fx_per_fold  = None
+        self.deactive_fold = False
+        
 
         #Number of current evaluations!
         self.n_evals = 0 
@@ -187,6 +182,8 @@ class Per_Group_Bayesian_Optimization_Progressive:
         print(f'Init {self.n_init} Max Iter: {self.max_evals}')
         print(f'Output Transformation {box_cox_enabled}')
         print(f'Grid Values {grid_values}')
+
+        
         if model =='RF':
             print('Mode is RF or pooled')
             self.model = Simple_RF(self.config_space,rng=random_seed,n_estimators=100,box_cox_enabled = box_cox_enabled)
@@ -370,26 +367,11 @@ class Per_Group_Bayesian_Optimization_Progressive:
         '''Creates new population of 'pop_size' and evaluates individuals.
         '''
 
-        curr_time = []
         #extra_overhead_time = time.time()
         initial_configurations = self.load_initial_design_configurations(self.n_init)
-        #objective_value_per_configuration = np.array([np.inf for i in range(self.n_init)])
-        #end_extra_overhead_time = time.time() - extra_overhead_time
 
         for i in range(self.n_init):
-            time_start = time.time()
-            fX_next = self.run_objective(initial_configurations[i], fold)
-            self.check_if_incumberment(self.vector_to_configspace( initial_configurations[i] ),fX_next)
-            #Extra timings
-            self.surrogate_time = np.concatenate((self.surrogate_time,np.array([0])))
-            self.acquisition_time = np.concatenate((self.acquisition_time,np.array([0])))
-            end_time = time.time() - time_start
-            curr_time.append(end_time)
-        self.total_time = np.concatenate((self.total_time,np.array(curr_time)))
-
-        #After running all initials save the results on fX
-        self.fX = np.array(deepcopy(self.y[fold])) 
-
+            self.run_objective(initial_configurations[i], fold)
 
     # Returns the best configuration of this specific group along with the score.
     def return_incumberment(self):
@@ -406,15 +388,10 @@ class Per_Group_Bayesian_Optimization_Progressive:
         X = self.X  
         # Standardize values
         fX = self.fX
+        #fX = self.fX
             
-        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2' or self.model_name  == 'RF_Pooled':
-            fx_per_fold = self.fx_per_fold
-            #here we train...
-            self.model.train(X, fx_per_fold)
-        else:
-            self.model.train(X,fX)
+        self.model.train(X,fX)
             
-
         #Always update the acquisition function with the new surrogate model.
         self.acquisition_function.update(self.model)
 
@@ -453,13 +430,12 @@ class Per_Group_Bayesian_Optimization_Progressive:
         return (X_next,acquisition_value)
     
     # This will be gready, as we should only care about the current fold avg. Not the previous
-    def compute_avg_performance(self,iter_fold):
+    def compute_avg_performance(self, iter_fold):
         # Store the current predictions in np.array
         # Get the mean of each ROW (Config)
         # Store in fX :)
         
-        #print(np.array([self.y[i] for i in range(iter_fold)]).mean(axis=0).shape)
-        self.fX = np.array([self.y[i] for i in range(iter_fold+1)]).mean(axis=0)
+        self.fX = self.fx_per_fold[:,:iter_fold+1].mean(axis=1)
 
     # When you run on next fold --> reset the incumberment no matter what.
     def compute_next_fold_current_inc_after_avg(self):
@@ -488,25 +464,10 @@ class Per_Group_Bayesian_Optimization_Progressive:
         ## Make sure the vector is in config_space, in order to be run fast by the model
         config = self.vector_to_configspace( X_next )
 
-
-        if self.model_name =='Ensemble_RF' or self.model_name =='Ensemble_RF2' or self.model_name == 'RF_Pooled':
-            #Run the objective function
-            res, fold_values = self.f(self.add_group_name_to_config(config), fold)
-        else: 
-            res = self.f(self.add_group_name_to_config(config), fold)
-
-        
-        #Get the AUC - R2 etc.
-        fX_next = res 
-        #print(self.group_name,fX_next)
-
-        #Increase the number of evaluations
-        self.n_evals+=self.batch_size
-
         #Add to X and fX vectors.
-        
         self.X = np.vstack((self.X, deepcopy(X_next)))
-        self.fX = np.concatenate((self.fX, [fX_next]))
+
+        _, fold_values = self.f(self.add_group_name_to_config(config))
 
         if self.deactive_fold == False:
             if  not isinstance(self.fx_per_fold, np.ndarray):
@@ -514,8 +475,7 @@ class Per_Group_Bayesian_Optimization_Progressive:
             else:
                 self.fx_per_fold = np.concatenate((self.fx_per_fold,[fold_values]))
 
-
-        self.y[fold].append(fX_next)
+        self.fX = np.concatenate((self.fX, [fold_values[fold]]))
 
 
         #This is a better interpretable form of storing the configurations.
@@ -523,17 +483,14 @@ class Per_Group_Bayesian_Optimization_Progressive:
         self.X_df = self.X_df.append(new_row,ignore_index=True)
 
         #Check if this is the best configuration.
-        self.check_if_incumberment(config,fX_next)
+        self.check_if_incumberment(config, fold_values[fold])
 
         end_time=time.time() - start_time
         self.objective_time = np.concatenate((self.objective_time,np.array([end_time])))
-
-        return fX_next
+        
+        #Increase the number of evaluations
+        self.n_evals+=self.batch_size
     
-    def run_old_configs_on_current_fold(self,fold):
-        #Run the previous on the new fold. and add the results to the list
-
-        self.y[fold] = [self.f(self.add_group_name_to_config(self.vector_to_configspace( config) ),fold=fold) for config in self.X]
 
 
     # This runs a new configuration on all the previous folds. --> Return the average
@@ -542,30 +499,22 @@ class Per_Group_Bayesian_Optimization_Progressive:
         ## Make sure the vector is in config_space, in order to be run fast by the model
         config = self.vector_to_configspace( X_next )
 
-        #print(config)
-        #again this is the iterator fold, so its up-to. Fold 0 == Iterator Fold 1.
-        per_fold_auc = [self.f(self.add_group_name_to_config(config),fold=f) for f in range(iter_fold+1)]
-        #print(iter_fold)
-        #print(per_fold_auc)
-        self.n_evals+=self.batch_size
-        #Add to X and fX vectors.
         self.X = np.vstack((self.X, deepcopy(X_next)))
+
+
+        _, fold_values = self.f(self.add_group_name_to_config(config))
+
+        self.fx_per_fold = np.concatenate((self.fx_per_fold,[fold_values]))
+        
+        
+        self.fX = np.concatenate((self.fX, np.array([np.mean(fold_values[:iter_fold+1])])))
 
         #This is a better interpretable form of storing the configurations.
         new_row = pd.DataFrame(config.get_dictionary().copy(),index=[0])
         self.X_df = self.X_df.append(new_row,ignore_index=True)
 
-        # each list increase by 1 config for each fold.
-        # Try with append.
-        for f in range(iter_fold+1):
-            self.y[f] = self.y[f] + [per_fold_auc[f]]
-            
-        
-        #print(np.mean(per_fold_auc))
-        self.fX = np.concatenate((self.fX,np.array([np.mean(per_fold_auc)])))
-        #print('Average over folds.')
-        #print(self.fX)
-        return np.mean(per_fold_auc)
+        self.n_evals += self.batch_size
+
      
     # Returns the best configuration of this specific group along with the score.
     def return_incumberment(self):

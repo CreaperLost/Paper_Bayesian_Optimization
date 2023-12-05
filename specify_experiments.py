@@ -109,13 +109,7 @@ OPTIMIZERS = [
      'N_INIT'  : 20,
      'ADAPTIVE': False,
     },
-]
-"""
 
-
-
-
-ABLATION_CONFIG_LIST = [
     {'name': 'GP_0_mean',
      'SURROGATE' : 'GP',
      'ACQ_GRID': 900,
@@ -125,6 +119,21 @@ ABLATION_CONFIG_LIST = [
      'ADAPTIVE': False,
     },
 ]
+"""
+
+
+
+
+ABLATION_CONFIG_LIST = [
+    {'name' :'RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : False,
+     'N_INIT'  :20,
+     'ADAPTIVE': True,
+    }
+]
 
 """
 
@@ -132,14 +141,7 @@ ABLATION_CONFIG_LIST = [
    
     
     
-    {'name' :'RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE',
-     'SURROGATE' : 'RF',
-     'ACQ_GRID': 900,
-     'LOCAL_SEARCH':True,
-     'OUTPUT_TRANSFORMATION' : True,
-     'N_INIT'  :20,
-     'ADAPTIVE': True,
-    }
+    
 
 
 """
