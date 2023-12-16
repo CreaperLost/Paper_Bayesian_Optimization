@@ -180,6 +180,57 @@ def compute_CV_roc_score_per_seed(preds, labels) -> pd.Series:
     
     return df_per_fold.mean(axis=0)
 
+
+
+def compute_ACV_roc_score_per_seed(preds, labels) -> pd.Series:
+    """
+    Create a pd.Series dataframe with the roc value achieved by each configuration.
+    """
+    df_per_fold = pd.DataFrame()
+    for fold in preds:
+        roc_score_array = []
+        if isinstance(preds[fold],list ):
+            for config_prob in preds[fold]:
+                score = roc_auc_score(labels[fold], config_prob ,multi_class='ovr')
+                roc_score_array.append(score)
+            roc_series = pd.Series(roc_score_array,index= list(np.arange(0,len(preds[fold]))))
+        else:
+
+            for config in preds[fold].columns:
+                score = roc_auc_score(labels[fold], preds[fold][config],multi_class='ovr')
+                roc_score_array.append(score)
+            #create a dataframe where each has a seed an index
+            roc_series = pd.Series(roc_score_array,index= list(preds[fold].columns))
+        roc_series.name = fold
+        df_per_fold = df_per_fold.append(roc_series)
+    
+
+    fold0 = df_per_fold.iloc[:1,:150].mean(axis=0).cummax()
+    fold1 = df_per_fold.iloc[:2,:200].mean(axis=0).cummax()
+    fold2 = df_per_fold.iloc[:3,:250].mean(axis=0).cummax()
+    fold3 = df_per_fold.iloc[:4,:300].mean(axis=0).cummax()
+    fold4 = df_per_fold.iloc[:5,:350].mean(axis=0).cummax()
+
+    
+
+
+    fold0_max = [fold0[:i].idxmax() for i in range(1,151)]
+    fold1_max = [fold1[:i].idxmax() for i in range(151,201)]
+    fold2_max = [fold2[:i].idxmax() for i in range(201,251)]
+    fold3_max = [fold3[:i].idxmax() for i in range(251,301)]
+    fold4_max = [fold4[:i].idxmax() for i in range(301,351)]
+
+    final_csv = df_per_fold.mean(axis=0)
+
+    score = []
+    score.extend([final_csv[i] for i in fold0_max])
+    score.extend([final_csv[i] for i in fold1_max])
+    score.extend([final_csv[i] for i in fold2_max])
+    score.extend([final_csv[i] for i in fold3_max])
+    score.extend([final_csv[i] for i in fold4_max])
+
+    return pd.Series(score)
+
 def compute_CV_roc_score_per_dataset(results, labels_df):
     """
     Computes the roc auc per seed for the dataset with the given id.
@@ -193,8 +244,33 @@ def compute_CV_roc_score_per_dataset(results, labels_df):
         
     return roc_scores_dict
 
+def compute_ACV_roc_score_per_dataset(results, labels_df):
+    """
+    Computes the roc auc per seed for the dataset with the given id.
+    returns : a dictionary with the roc_auc_scores per seed. (pd.Series format)
+    """
+    roc_scores_dict = {}
+    for seed in results:
+        series_object = compute_ACV_roc_score_per_seed(results[seed], labels_df[seed])
+        series_object.name = seed
+        roc_scores_dict[seed] = series_object
+        
+    return roc_scores_dict
+
 def compute_CV_roc_score(results, labels_df) -> pd.DataFrame:
     roc_scores =  compute_CV_roc_score_per_dataset(results, labels_df)
+        
+    # Adds up each one to the dataframe.
+    df_auc = pd.DataFrame()
+    for seed in roc_scores:
+        df_auc  = df_auc.append(roc_scores[seed])
+    df_auc.sort_index(inplace=True)
+    return df_auc
+
+
+
+def compute_ACV_roc_score(results, labels_df) -> pd.DataFrame:
+    roc_scores =  compute_ACV_roc_score_per_dataset(results, labels_df)
         
     # Adds up each one to the dataframe.
     df_auc = pd.DataFrame()
@@ -338,6 +414,49 @@ def get_bbc_scores():
             # Sum up the results
             averaged_corrected_score = sum(results)"""
 
+def adaptive_plot():
+    for data_id in datasets:
+        print(data_id)
+        labels_CV_df = get_CV_labels(data_id)
+        # Get Labels. Per seed for a dataset
+        holdout_labels_df = get_hold_out_labels(data_id)
+        for opt in ['RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE']:
+
+            rf_holdout_results = get_hold_out_probs(opt, data_id)
+
+
+            # Finds the hold_out scores per dataset for the optimizer.
+            holdout_scores_per_dataset = compute_holdout_roc_score(rf_holdout_results, holdout_labels_df)
+
+            rf_CV_results = get_CV_probs(data_id ,opt)
+
+            CV_scores_per_dataset = compute_CV_roc_score(rf_CV_results, labels_CV_df)
+
+
+            ACV_scores_per_dataset = compute_ACV_roc_score(rf_CV_results, labels_CV_df)
+
+
+            CV_directory  = f'ablation_scores/{data_id}/CV/'
+            Holdout_directory = f'ablation_scores/{data_id}/Holdout/'
+
+            ACV_directory  = f'ablation_scores/{data_id}/ACV/'
+            # Check if directories exist, and create them if needed
+            if not os.path.exists(CV_directory):
+                os.makedirs(CV_directory)
+
+            # Check if directories exist, and create them if needed
+            if not os.path.exists(ACV_directory):
+                os.makedirs(ACV_directory)
+
+            # Check if directories exist, and create them if needed
+            if not os.path.exists(Holdout_directory):
+                os.makedirs(Holdout_directory)
+            
+            
+            CV_scores_per_dataset.to_csv(CV_directory+f'{opt}.csv')
+            holdout_scores_per_dataset.to_csv(Holdout_directory+f'{opt}.csv')
+
+            ACV_scores_per_dataset.to_csv(ACV_directory+f'{opt}.csv')
 
 
 
@@ -512,5 +631,6 @@ def per_dataset_plot():
                     #plt.show()
 
 
-per_dataset_plot()
+#per_dataset_plot()
 #get_bbc_scores()
+adaptive_plot()

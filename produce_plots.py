@@ -42,6 +42,9 @@ def get_cumulative_score(data:pd.DataFrame, norm_score:bool, min:pd.Series, max:
     return resulting_mean_cumsum,max_column_indices
 
 
+    
+
+
 def get_cumulative_score_box(data:pd.DataFrame, norm_score:bool, min:pd.Series, max:pd.Series) -> tuple:
 
     max_column_indices = data.idxmax(axis=1)
@@ -50,6 +53,11 @@ def get_cumulative_score_box(data:pd.DataFrame, norm_score:bool, min:pd.Series, 
     cummax_per_seed = data.cummax(axis=1)
 
     return cummax_per_seed,max_column_indices
+
+def get_cv_adaptive(path:str, opt:str, norm_score:bool, min:pd.Series, max:pd.Series)->pd.DataFrame:
+    path_to_data =  path+f'/CV/{opt}.csv'
+    data = pd.read_csv(path_to_data,index_col=0)
+    return data.mean(axis=0)
 
 
 def get_cv_score_per_opt(path:str, opt:str, norm_score:bool, min:pd.Series, max:pd.Series)->pd.DataFrame:
@@ -123,10 +131,11 @@ def color_per_opt(opt):
         color = 'grey'
     elif opt == 'RF_GRID_LOCAL_INIT':
         color = 'black'
-    elif opt == 'RF_GRID_LOCAL-Ensemble':
+    elif opt == 'RF_GRID_LOCAL-Ensemble2':
         color = 'yellow'
     elif opt == 'RF_GRID_LOCAL_BIG_INIT':
         color = 'brown'
+    
     return color
 
 
@@ -208,16 +217,25 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 from scipy import stats
 
-def do_Test(before,after):
+def do_Test(name_before, name_after, df):
+
+
+    print(f'Test {name_after} vs {name_before}')
+
+    before = df[name_before]
+    after = df[name_after]
+    
     print(f'Score after { np.round(np.mean(after),5)} before {np.round( np.mean(before),5 ) }')
     print(f'Mean Diff AFter - Before : { np.round(np.mean(after) - np.mean(before),5 ) }')
     """print('Median Diff',np.median(before)-np.median(after))
     print('Min Diff',np.min(before)-np.min(after))
     print('Max Diff',np.max(before)-np.max(after))"""
     print('Percentage change % (>0\% improvement)', 100*(np.mean(after) - np.mean(before))/np.mean(before))
+
+    print(f"% Wins of {name_after} vs {name_before} : {count_of_wins(df, name_before, name_after)}")
    
-    _,p_val = stats.ttest_rel(after,before,alternative='greater')
-    _,p_val2 = stats.wilcoxon(after,before,alternative='greater')
+    #_,p_val = stats.ttest_rel(after,before,alternative='greater')
+    #_,p_val2 = stats.wilcoxon(after,before,alternative='greater')
     #print('Pvalue, ',np.round(p_val,6), np.round(p_val2,6))
 
 
@@ -233,13 +251,15 @@ def count_of_wins(dataframe, col1, col2):
     loss_perce = loss_res*100 / dataframe.shape[0]
     return np.round(win_perce,3), np.round(tie_perce,3), np.round(loss_perce,3)
 
-def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score: bool):
+def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score: bool, keep_high: bool):
 
 
     cv_scores_per_opt = {}
+    total_cv_scores_per_opt = {}
     holdout_scores_per_opt = {}
     for opt in opt_list:
         cv_scores_per_opt[opt] = []
+        total_cv_scores_per_opt[opt] = []
         holdout_scores_per_opt[opt] = []
         for data_id in datasets:
             path = get_path_according_to_experiment(experiment, data_id)
@@ -249,18 +269,45 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
             score = get_holdout_score_per_opt(path, opt, index_of_max)
 
             cv_scores_per_opt[opt].append(cumulative_score[349])
+            total_cv_scores_per_opt[opt].append(cumulative_score)
             holdout_scores_per_opt[opt].append(score)
+
+        total_cv_scores_per_opt[opt] = pd.DataFrame(total_cv_scores_per_opt[opt])
+        
 
 
     dataframe = pd.DataFrame(cv_scores_per_opt)
-        
+
+
+    if keep_high:
+
+        # Threshold value
+        threshold = 0.99
+
+        # Check which rows have all values over the threshold
+        rows_to_remove = (dataframe > threshold).all(axis=1)
+
+        # Remove rows where all values are over the threshold
+        dataframe = dataframe[~rows_to_remove]
+
+
+        for opt in opt_list:
+            total_cv_scores_per_opt[opt] = total_cv_scores_per_opt[opt][~rows_to_remove]
+      
+    
+
+    print(dataframe)
+
+    for opt in opt_list:
+        total_cv_scores_per_opt[opt] = total_cv_scores_per_opt[opt].mean(axis=0)
+
     for idx,opt in enumerate(opt_list):
 
         #violin = plt.violinplot(cv_scores_per_opt[opt],positions=[idx], showextrema=True ,showmedians=False, vert=True)
         #violin['bodies'][0].set_facecolor(color_per_opt(opt))
-        boxplot = plt.boxplot(cv_scores_per_opt[opt],positions=[idx],showmeans=False,patch_artist=True,labels=[opt],zorder=1)
+        boxplot = plt.boxplot(dataframe[opt],positions=[idx],showmeans=False,patch_artist=True,labels=[opt],zorder=1)
         
-        plt.scatter(y=cv_scores_per_opt[opt],x = [idx for _ in range(0,len(cv_scores_per_opt[opt]))],c='black',zorder=2)
+        plt.scatter(y=dataframe[opt],x = [idx for _ in range(0,len(dataframe[opt]))],c='black',zorder=2)
         boxplot['boxes'][0].set_facecolor(color_per_opt(opt))
         boxplot['medians'][0].set_color('white')
         """violin2 = plt.violinplot(holdout_scores_per_opt[opt],positions=[idx+0.5], showmedians=True, vert=True)
@@ -269,6 +316,26 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
     ticks = []
     for opt in opt_list:
         ticks.extend(['CV_'+opt])
+
+    
+
+    do_Test('GP','RF', dataframe)
+    do_Test('RF','RF_GRID', dataframe)
+    do_Test('RF_GRID','RF_GRID_LOCAL', dataframe)
+    do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS', dataframe)
+    do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL_INIT', dataframe)
+    do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL_BIG_INIT', dataframe)
+    do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble2', dataframe)
+    do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL-Pooled', dataframe)
+
+
+    #do_Test('RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2', dataframe)
+
+    #do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL-Pooled', dataframe)
+    
+    #do_Test('RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE',dataframe)
+    
+    #'RF_GRID_LOCAL','RF_GRID_LOCAL-Pooled'
 
 
     """print("+===========================+")
@@ -336,6 +403,84 @@ def create_plot_average(experiment:str, datasets:list, opt_list:list, norm_score
     plt.legend()
     plt.show()
 
+
+
+    plt.clf()
+
+
+    for idx,opt in enumerate(['GP','RF','RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble2']):
+        plt.plot(total_cv_scores_per_opt[opt],color = color_per_opt(opt),linestyle='-', label=opt)
+
+    xticks_interval = 50
+    plt.xticks(np.arange(1, 351, xticks_interval))
+    plt.ylim(0.92,0.935)
+    plt.axvline(x=100, color='red', linestyle=':', label='Random Initial Configs')
+    plt.xlabel('Configurations')
+    plt.ylabel('Avg. AUC Score')
+    plt.title('Ablation Study')
+    plt.legend()
+    plt.show()
+
+ 
+
+
+def create_adaptive_plot(experiment:str, datasets:list, opt_list:list, keep_high: bool):
+    total_cv_scores_per_opt = {}
+    cv_scores_per_opt = {}
+    for opt in opt_list:
+        total_cv_scores_per_opt[opt] = []
+        cv_scores_per_opt[opt] = []
+        for data_id in datasets:
+            path = get_path_according_to_experiment(experiment, data_id)
+            min, max  = get_min_max_per_dataset(path,opt_list=opt_list)
+            # Get the CV cumulative score and the locations of maximums
+            if opt == 'RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE':
+                # this score is not actually cumulative
+                cumulative_score = get_cv_adaptive(path, opt, False, min, max)
+            else:
+                cumulative_score, index_of_max = get_cv_score_per_opt(path, opt, False, min, max)
+            total_cv_scores_per_opt[opt].append(cumulative_score)
+            cv_scores_per_opt[opt].append(cumulative_score[349])
+
+        total_cv_scores_per_opt[opt] = pd.DataFrame(total_cv_scores_per_opt[opt])
+
+    dataframe = pd.DataFrame(cv_scores_per_opt)
+
+
+    if keep_high:
+
+        # Threshold value
+        threshold = 0.99
+
+        # Check which rows have all values over the threshold
+        rows_to_remove = (dataframe > threshold).all(axis=1)
+
+        # Remove rows where all values are over the threshold
+        dataframe = dataframe[~rows_to_remove]
+
+
+        for opt in opt_list:
+            total_cv_scores_per_opt[opt] = total_cv_scores_per_opt[opt][~rows_to_remove]
+      
+    
+
+    for opt in opt_list:
+        total_cv_scores_per_opt[opt] = total_cv_scores_per_opt[opt].mean(axis=0)
+
+        print(total_cv_scores_per_opt[opt])
+
+    for idx,opt in enumerate(opt_list):
+        plt.plot(total_cv_scores_per_opt[opt],color = color_per_opt(opt),linestyle='-', label=opt)
+
+    xticks_interval = 50
+    plt.xticks(np.arange(1, 351, xticks_interval))
+    #plt.ylim(0.86,0.88)
+    plt.axvline(x=100, color='red', linestyle=':', label='Random Initial Configs')
+    plt.xlabel('Configurations')
+    plt.ylabel('Avg. AUC Score')
+    plt.title('Ablation Study')
+    plt.legend()
+    plt.show()
 
 
 def holdout(experiment:str, datasets:list, opt_list:list, norm_score: bool):
@@ -473,13 +618,21 @@ experiment = ABLATION
 
 
 # ,'RF_GRID_LOCAL_TRANS','RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2',
-create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['GP_0_mean','GP',])
+#create_plot_per_dataset(experiment=experiment, datasets=datasets, opt_list=['GP_0_mean','GP',])
+
+#create_adaptive_plot(experiment=experiment, datasets=datasets,opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE'],keep_high=True)
+
+create_plot_average(experiment=experiment, datasets=datasets,opt_list=['GP','RF','RF_GRID','RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS','RF_GRID_LOCAL_INIT','RF_GRID_LOCAL_BIG_INIT','RF_GRID_LOCAL-Pooled','RF_GRID_LOCAL-Ensemble2','RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE'],norm_score=False, keep_high=False)
+
+#create_plot_average(experiment=experiment, datasets=datasets,opt_list=['RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2'],norm_score=False, keep_high=True)
 
 
-create_plot_average(experiment=experiment, datasets=datasets, 
-                    opt_list=['GP','GP_0_mean'],norm_score=False)
+# create_plot_average(experiment=experiment, datasets=datasets,  opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL-Pooled'],norm_score=False,keep_high=True)
 
-# 'RF_GRID_LOCAL_INIT','RF_GRID_LOCAL_BIG_INIT', 'RF','GP','RF_GRID', ,'RF_GRID_LOCAL-Pooled' ,'RF_GRID_LOCAL_TRANS', 'RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2'
+
+#create_plot_average(experiment=experiment, datasets=datasets,  opt_list=['RF_GRID_LOCAL','RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE'],norm_score=False, keep_high=True)
+
+# 'RF_GRID_LOCAL_INIT','RF_GRID_LOCAL_BIG_INIT', 'RF','GP','RF_GRID', ,'RF_GRID_LOCAL-Pooled' ,'RF_GRID_LOCAL_TRANS', 'RF_GRID_LOCAL','RF_GRID_LOCAL-Ensemble','RF_GRID_LOCAL-Ensemble2', 'GP_0_mean'
 
 """holdout(experiment=experiment, datasets=datasets, 
                     opt_list=['RF_GRID_LOCAL'],norm_score=False)

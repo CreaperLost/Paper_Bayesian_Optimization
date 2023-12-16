@@ -123,8 +123,75 @@ OPTIMIZERS = [
 
 
 
-
+"""
 ABLATION_CONFIG_LIST = [
+
+    {'name' : 'GP',
+     'SURROGATE' : 'GP',
+     'ACQ_GRID': 10000,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+    },
+    {'name' : 'RF',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 10000,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+    },
+    
+ {'name' : 'RF_GRID',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':False,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+    },
+    {'name': 'RF_GRID_LOCAL',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+    },
+    {'name' : 'RF_GRID_LOCAL_TRANS',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : True,
+     'N_INIT'  :20,
+     'ADAPTIVE': False,
+    },
+    {'name':'RF_GRID_LOCAL_INIT',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : False,
+     'N_INIT'  :10,
+     'ADAPTIVE': False,
+    },
+    {'name':'RF_GRID_LOCAL_BIG_INIT',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : False,
+     'N_INIT'  :30,
+     'ADAPTIVE': False,
+    },
+    {'name': 'RF_GRID_LOCAL-Ensemble2',
+     'SURROGATE' : 'Ensemble_RF2',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : None,
+     'N_INIT'  : 20,
+     'ADAPTIVE': False,
+    },
+
     {'name' :'RF_GRID_LOCAL_TRANS_INIT_ADAPTIVE',
      'SURROGATE' : 'RF',
      'ACQ_GRID': 900,
@@ -133,19 +200,19 @@ ABLATION_CONFIG_LIST = [
      'N_INIT'  :20,
      'ADAPTIVE': True,
     }
+]"""
+
+ABLATION_CONFIG_LIST = [
+
+    {'name' :'RF_GRID_LOCAL_TRANS_INIT_Progressive',
+     'SURROGATE' : 'RF',
+     'ACQ_GRID': 900,
+     'LOCAL_SEARCH':True,
+     'OUTPUT_TRANSFORMATION' : False,
+     'N_INIT'  :20,
+     'ADAPTIVE': 'Progressive',
+    }
 ]
-
-"""
-
- 
-   
-    
-    
-    
-
-
-"""
-
 
 
 #   
@@ -176,7 +243,9 @@ COMPARISON = 'COMPARISON'
 EXPERIMENT = ABLATION
 
 
-ABLATION_DATASETS = [ 2079,  168912,  9960, 31,  125920, 14954, 49, 28, 29 , 3 ,11, 168911,10093,3902,146822] 
+ABLATION_DATASETS = [167140, 3913, 31, 43, 23]
+
+#ABLATION_DATASETS = [ 2079,  168912,  9960, 31,  125920, 14954, 49, 28, 29 , 3 ,11, 168911,10093,3902,146822] 
 
 """
 
@@ -193,6 +262,6 @@ FULL_EXPERIMENTS_DATASETS = [12, 14, 15, 16, 18, 22, 23, 37, 43, 45, 53,
                                9964, 9971, 9976, 9978, 9981, 9985, 10093, 
                                10101, 14969, 125922, 146800, 146817, 146819, 
                                146820, 146821, 146822, 146824, 167140, 167141, 146818, 168910]
-#list(filter(lambda i: i not in ABLATION_DATASETS, FULL_CLASSIFICATION_AUTOML_LIST))
+#print(list(filter(lambda i: i not in ABLATION_DATASETS, FULL_CLASSIFICATION_AUTOML_LIST)))
 
 

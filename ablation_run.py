@@ -99,6 +99,14 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                                             random_seed=seed,maximizer='Sobol',
                                             local_search=local_search_enabled,
                                             grid_values = grid_vals,box_cox_enabled = output_transformation_enabled)
+                elif adaptive == 'Progressive':
+                    objective_function = benchmark_.objective_function_ensemble
+                    Optimization = RF_Local_Progressive(f=objective_function, model=model ,lb= None, ub =None ,
+                                            configuration_space=config_dict,\
+                                            n_init=n_init,max_evals=max_evals,initial_design=None,
+                                            random_seed=seed,maximizer='Sobol',
+                                            local_search=local_search_enabled,
+                                            grid_values = grid_vals,box_cox_enabled = output_transformation_enabled)
                 elif model == 'Ensemble_RF' or model == 'Ensemble_RF2' or model == 'RF_Pooled':
                     objective_function = benchmark_.objective_function_ensemble
                     Optimization = RF_Local(f=objective_function, model=model ,lb= None, ub =None ,
