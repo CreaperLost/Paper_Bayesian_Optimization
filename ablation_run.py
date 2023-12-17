@@ -24,6 +24,7 @@ from bo_algorithms.Mango import Mango
 from bo_algorithms.Optuna import Optuna
 from bo_algorithms.hyperopt import HyperOpt
 from bo_algorithms.my_bo.RF_Local_Progressive import RF_Local_Progressive
+from bo_algorithms.my_bo.RF_Local_Progressive2 import RF_Local_Progressive2
 
 
 from csv import writer
@@ -101,7 +102,7 @@ def run_benchmark_total(optimizers_used =[],bench_config={},save=True):
                                             grid_values = grid_vals,box_cox_enabled = output_transformation_enabled)
                 elif adaptive == 'Progressive':
                     objective_function = benchmark_.objective_function_ensemble
-                    Optimization = RF_Local_Progressive(f=objective_function, model=model ,lb= None, ub =None ,
+                    Optimization = RF_Local_Progressive2(f=objective_function, model=model ,lb= None, ub =None ,
                                             configuration_space=config_dict,\
                                             n_init=n_init,max_evals=max_evals,initial_design=None,
                                             random_seed=seed,maximizer='Sobol',
